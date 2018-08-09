@@ -1,0 +1,54 @@
+* todos 
+* logbook
+** initial ode
+- the plan: write the ode in julia
+- to avoid complications with handing over the arrays in the beginning, start by
+  generating the matrix in lisp (as will be the case anyways), write it out, read it in in
+  julia and then use it
+** setting up lisp package to create matrices
+#+BEGIN_SRC lisp :results none
+(ql:quickload :with-project-dir)
+(ql:quickload :fare-quasiquote)
+#+END_SRC
+
+#+BEGIN_SRC lisp :results none
+(with-project-dir:with-project-dir ("/home/renee/phd/src/charge-distribution.project/")
+  (ql:quickload :ebit-interaction-rates)
+  (ql:quickload :ebit-differential-equations))
+#+END_SRC
+*** so, what to do ?
+- create a list of indices
+- for every index, iterate over the all indices and collect the rate infos
+- then, add them appropriately
+*** [2018-08-09 Thu 10:05] created rates
+- NA: create and integrate protobuf protocol
+- then, try it:
+#+BEGIN_SRC lisp
+(in-package :ebit-interaction-rates)
+
+
+(write-decay-rates-to-file (make-instance 'ebit-system
+					  :nuclides
+					  (list (nubase:get-entry-for 20 8)))
+			   "/home/renee/tmp/test.serialized"
+			   :if-exists :overwrite)
+#+END_SRC
+
+- renamed protobuf msgs for interaction rates
+- now need to use this [[ebit-interaction-rates protobuf code]]
+* reusable stuff
+** ebit-interaction-rates protobuf code
+#+BEGIN_SRC shell
+export PATH="$PATH:/home/renee/.julia/packages/ProtoBuf/w5yif/plugin/"
+export JULIA=~/src/julia-0.7.0/bin/julia 
+protoc -I /home/renee/phd/src/charge-distribution.project/julia-ode/ebit-interaction-rates-msgs/ \
+        --julia_out=/home/renee/phd/src/charge-distribution.project/julia-ode/\
+        /home/renee/phd/src/charge-distribution.project/julia-ode/ebit-interaction-rates-msgs/interaction-rate.proto
+#+END_SRC
+
+#+RESULTS:
+
+* documentation
+** ODE matrix formulation
+
+
