@@ -23,7 +23,7 @@
 *** [2018-08-09 Thu 10:05] created rates
 - NA: create and integrate protobuf protocol
 - then, try it:
-#+BEGIN_SRC lisp
+#+BEGIN_SRC lisp :results none
 (in-package :ebit-interaction-rates)
 
 
@@ -32,18 +32,107 @@
 					  (list (nubase:get-entry-for 20 8)))
 			   "/home/renee/tmp/test.serialized"
 			   :if-exists :overwrite)
+
+
+(get-decay-rates (make-instance 'ebit-system
+				:nuclides
+				(list (nubase:get-entry-for 20 8))))
+
+(proto:deserialize-object-from-file 'ebitode:rate-list "/home/renee/tmp/test.serialized")
 #+END_SRC
 
 - renamed protobuf msgs for interaction rates
 - now need to use this [[ebit-interaction-rates protobuf code]]
+- that seems to work, let's try reading some protobuf files in julia
+- ok, I can solve the ODE, but the solution is wrong, so the rates are probably wrong
+- ODE seems to be ok, plotting in julia is a disaster, start tomorrow by writing protobuf files
+*** [2018-08-11 Sat 10:38] test calling julia from lisp
+- okay, we get segfaults upon garbage collection after initializing julia
+#+BEGIN_SRC lisp
+(ql:quickload :with-project-dir)
+(defvar cl-user::*cffi-julia-configuration* '(:julia-location "/home/renee/src/julia-d386e40c17/"))
+#+END_SRC
+
+#+RESULTS:
+: *CFFI-JULIA-CONFIGURATION*
+
+#+BEGIN_SRC lisp
+(with-project-dir:with-project-dir ("/home/renee/phd/src/charge-distribution.project/")
+  (ql:quickload :cffi-julia))
+#+END_SRC
+
+#+RESULTS:
+| :CFFI-JULIA |
+
+#+BEGIN_SRC lisp
+(in-package #:cffi-julia)
+(jl-init)
+#+END_SRC
+
+#+RESULTS:
+: ; No value
+*** [2018-08-13 Mon 09:36] so, let's introduce a pipeserver in julia 
+and connect to it 
+**** but first: test protobuf protocol via a file
+#+BEGIN_SRC lisp
+(with-project-dir:with-project-dir ("/home/renee/phd/src/charge-distribution.project/")
+  (ql:quickload :ebit-ode-interface))
+#+END_SRC
+
+#+RESULTS:
+| :EBIT-ODE-INTERFACE |
+
+#+BEGIN_SRC lisp 
+(in-package #:ebit-ode-interface)
+
+(defun generate-decade-reporting (start-decade points-per-decade end)
+  (iter outer
+    (for decade from (log start-decade 10) below (log end 10) by 1d0)
+    (for dec = (expt 10 decade))
+    (for dec+1 = (expt 10 (1+ decade)))
+    (iter
+      (for val from dec below dec+1
+	   by (/ (- dec+1 dec) (1- points-per-decade)))
+      (unless (> val end)
+	(in outer (collect val))))))
+
+
+(let ((arr (make-array 30 :initial-element 0d0)))
+  (setf (aref arr 1) 1d0)
+  (with-open-file (stream "/home/renee/tmp/test2.serialize"
+			  :if-exists :overwrite
+			  :direction :output
+			  :element-type '(unsigned-byte 8))
+    (proto:serialize-object-to-stream (make-instance 'ebitode:problem
+						     :problem-type :ode-problem
+						     :initial-values arr
+						     :rate-list
+						     (eir:get-decay-rates (make-instance 'eir:ebit-system
+											 :nuclides
+											 (list (nubase:get-entry-for 20 8))))
+						     :time-span (make-instance 'ebitode:time-span :start 0.0d0 :end 0.015d0)
+						     :saveat (generate-decade-reporting 1d-4 100 0.015)
+						     :config (make-instance 'ebitode:problem-configuration))
+				      'ebitode:problem
+				      :stream stream)))
+#+END_SRC
+
+* ideas / scratch
+* Performance enhancements with julia
+** TODO look at split ODE types
+http://docs.juliadiffeq.org/stable/types/split_ode_types.html
+** TODO look at DiffEqOperators
+http://docs.juliadiffeq.org/stable/features/diffeq_operator.html
+
+
 * reusable stuff
-** ebit-interaction-rates protobuf code
-#+BEGIN_SRC shell
+** ebit-ode-msg protobuf code
+#+BEGIN_SRC shell :results none
 export PATH="$PATH:/home/renee/.julia/packages/ProtoBuf/w5yif/plugin/"
 export JULIA=~/src/julia-0.7.0/bin/julia 
-protoc -I /home/renee/phd/src/charge-distribution.project/julia-ode/ebit-interaction-rates-msgs/ \
-        --julia_out=/home/renee/phd/src/charge-distribution.project/julia-ode/\
-        /home/renee/phd/src/charge-distribution.project/julia-ode/ebit-interaction-rates-msgs/interaction-rate.proto
+protoc -I /home/renee/phd/src/charge-distribution.project/ebit-ode-interface/ebit-ode-msg/ \
+        --julia_out=/home/renee/phd/src/charge-distribution.project/ebit-ode-server/\
+        /home/renee/phd/src/charge-distribution.project/ebit-ode-interface/ebit-ode-msg/ebit-ode-messages.proto
 #+END_SRC
 
 #+RESULTS:

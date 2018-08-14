@@ -1,3 +1,6 @@
 [submodule "ebit-interaction-rates-msgs"]
 	path = ebit-interaction-rates-msgs
 	url = git@github.com:deepestthought42/ebit-interaction-rates-msgs.git
+[submodule "ebit-ode-msg"]
+	path = ebit-ode-msg
+	url = git@github.com:deepestthought42/ebit-ode-msg.git

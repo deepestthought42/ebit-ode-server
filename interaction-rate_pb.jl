@@ -21,6 +21,7 @@ end #mutable struct Rate
 
 mutable struct RateList <: ProtoType
     rates::Base.Vector{Rate}
+    dimension::Int32
     RateList(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct RateList
 
