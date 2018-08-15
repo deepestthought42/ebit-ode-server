@@ -1,4 +1,4 @@
-# syntax: proto3
+# syntax: proto2
 using Compat
 using ProtoBuf
 import ProtoBuf.meta
@@ -36,6 +36,8 @@ mutable struct Index <: ProtoType
     i::Int32
     Index(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Index
+const __req_Index = Symbol[:A,:Z,:q,:i]
+meta(t::Type{Index}) = meta(t, __req_Index, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct Rate <: ProtoType
     RateInHz::Float64
@@ -44,18 +46,24 @@ mutable struct Rate <: ProtoType
     destination::Index
     Rate(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Rate
+const __req_Rate = Symbol[:RateInHz,:Description,:origin,:destination]
+meta(t::Type{Rate}) = meta(t, __req_Rate, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct RateList <: ProtoType
     rates::Base.Vector{Rate}
     dimension::Int32
     RateList(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct RateList
+const __req_RateList = Symbol[:dimension]
+meta(t::Type{RateList}) = meta(t, __req_RateList, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct Update <: ProtoType
     status::Int32
     Message::AbstractString
     Update(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Update
+const __req_Update = Symbol[:status,:Message]
+meta(t::Type{Update}) = meta(t, __req_Update, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct ProblemConfiguration <: ProtoType
     ProblemConfiguration(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
@@ -63,9 +71,11 @@ end #mutable struct ProblemConfiguration
 
 mutable struct TimeSpan <: ProtoType
     start::Float64
-    _end::Float64
+    stop::Float64
     TimeSpan(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct TimeSpan
+const __req_TimeSpan = Symbol[:start,:stop]
+meta(t::Type{TimeSpan}) = meta(t, __req_TimeSpan, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct Problem <: ProtoType
     problem_type::Int32
@@ -74,18 +84,19 @@ mutable struct Problem <: ProtoType
     initial_values::Base.Vector{Float64}
     saveat::Base.Vector{Float64}
     config::ProblemConfiguration
+    indices::Base.Vector{Index}
     Problem(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Problem
-const __pack_Problem = Symbol[:initial_values,:saveat]
-meta(t::Type{Problem}) = meta(t, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, __pack_Problem, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+const __req_Problem = Symbol[:problem_type,:time_span,:rate_list,:config]
+meta(t::Type{Problem}) = meta(t, __req_Problem, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
-mutable struct ValuesAtTime <: ProtoType
-    time::Float64
+mutable struct ValuesPerIndex <: ProtoType
+    index::Index
     values::Base.Vector{Float64}
-    ValuesAtTime(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
-end #mutable struct ValuesAtTime
-const __pack_ValuesAtTime = Symbol[:values]
-meta(t::Type{ValuesAtTime}) = meta(t, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, __pack_ValuesAtTime, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+    ValuesPerIndex(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
+end #mutable struct ValuesPerIndex
+const __req_ValuesPerIndex = Symbol[:index]
+meta(t::Type{ValuesPerIndex}) = meta(t, __req_ValuesPerIndex, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct Result <: ProtoType
     problem::Problem
@@ -93,10 +104,10 @@ mutable struct Result <: ProtoType
     start_time::Float64
     stop_time::Float64
     times::Base.Vector{Float64}
-    values::Base.Vector{ValuesAtTime}
+    values::Base.Vector{ValuesPerIndex}
     Result(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Result
-const __pack_Result = Symbol[:times]
-meta(t::Type{Result}) = meta(t, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, __pack_Result, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+const __req_Result = Symbol[:problem,:return_code,:start_time,:stop_time]
+meta(t::Type{Result}) = meta(t, __req_Result, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
-export Status, ProblemType, ReturnCode, Index, Rate, RateList, Update, ProblemConfiguration, TimeSpan, Problem, ValuesAtTime, Result
+export Status, ProblemType, ReturnCode, Index, Rate, RateList, Update, ProblemConfiguration, TimeSpan, Problem, ValuesPerIndex, Result

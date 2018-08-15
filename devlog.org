@@ -97,7 +97,10 @@ and connect to it
 	(in outer (collect val))))))
 
 
-(let ((arr (make-array 30 :initial-element 0d0)))
+(let ((arr (make-array 30 :initial-element 0d0))
+      (system (make-instance 'eir:ebit-system
+			     :nuclides
+			     (list (nubase:get-entry-for 20 8)))))
   (setf (aref arr 1) 1d0)
   (with-open-file (stream "/home/renee/tmp/test2.serialize"
 			  :if-exists :overwrite
@@ -106,15 +109,40 @@ and connect to it
     (proto:serialize-object-to-stream (make-instance 'ebitode:problem
 						     :problem-type :ode-problem
 						     :initial-values arr
-						     :rate-list
-						     (eir:get-decay-rates (make-instance 'eir:ebit-system
-											 :nuclides
-											 (list (nubase:get-entry-for 20 8))))
-						     :time-span (make-instance 'ebitode:time-span :start 0.0d0 :end 0.015d0)
-						     :saveat (generate-decade-reporting 1d-4 100 0.015)
+						     :rate-list (eir:get-decay-rates system)
+						     :indices (eir:indices system)
+						     :time-span (make-instance 'ebitode:time-span
+									       :start 0.0d0 :stop 15d0)
+						     :saveat (generate-decade-reporting 1d-6 100 15)
 						     :config (make-instance 'ebitode:problem-configuration))
 				      'ebitode:problem
 				      :stream stream)))
+
+
+
+(proto:deserialize-object-from-file 'ebitode:problem "/home/renee/tmp/test2.serialize")
+
+(let+ (((&slots ebitode:values ebitode:times)
+	(proto:deserialize-object-from-file 'ebitode:result "/home/renee/tmp/test4.serialized")))
+  (labels ((cmd (fmt-str &rest args)
+	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
+    (mgl-gnuplot:with-session ()
+      (cmd "reset")
+      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (cmd "set logscale x")
+      (mgl-gnuplot:plot*
+       (iter
+	 (for v in ebitode:values)
+	 (collect
+	     (mgl-gnuplot:data*
+	      (iter
+		(for tt in ebitode:times)
+		(for y in (ebitode:values v))
+		(collect (list tt y)))
+	      "with lines title ''")))) 
+      (cmd "unset output")))
+
+  )
 #+END_SRC
 
 * ideas / scratch
@@ -130,9 +158,9 @@ http://docs.juliadiffeq.org/stable/features/diffeq_operator.html
 #+BEGIN_SRC shell :results none
 export PATH="$PATH:/home/renee/.julia/packages/ProtoBuf/w5yif/plugin/"
 export JULIA=~/src/julia-0.7.0/bin/julia 
-protoc -I /home/renee/phd/src/charge-distribution.project/ebit-ode-interface/ebit-ode-msg/ \
+protoc -I /home/renee/phd/src/charge-distribution.project/ebit-ode-server/ebit-ode-msg/ \
         --julia_out=/home/renee/phd/src/charge-distribution.project/ebit-ode-server/\
-        /home/renee/phd/src/charge-distribution.project/ebit-ode-interface/ebit-ode-msg/ebit-ode-messages.proto
+        /home/renee/phd/src/charge-distribution.project/ebit-ode-server/ebit-ode-msg/ebit-ode-messages.proto
 #+END_SRC
 
 #+RESULTS:
