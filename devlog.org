@@ -97,33 +97,49 @@ and connect to it
 	(in outer (collect val))))))
 
 
-(let ((arr (make-array 30 :initial-element 0d0))
-      (system (make-instance 'eir:ebit-system
-			     :nuclides
-			     (list (nubase:get-entry-for 20 8)))))
-  (setf (aref arr 1) 1d0)
-  (with-open-file (stream "/home/renee/tmp/test2.serialize"
-			  :if-exists :overwrite
-			  :direction :output
-			  :element-type '(unsigned-byte 8))
-    (proto:serialize-object-to-stream (make-instance 'ebitode:problem
-						     :problem-type :ode-problem
-						     :initial-values arr
-						     :rate-list (eir:get-decay-rates system)
-						     :indices (eir:indices system)
-						     :time-span (make-instance 'ebitode:time-span
-									       :start 0.0d0 :stop 15d0)
-						     :saveat (generate-decade-reporting 1d-6 100 15)
-						     :config (make-instance 'ebitode:problem-configuration))
-				      'ebitode:problem
-				      :stream stream)))
+(defun test (port)
+  (let+ ((arr (make-array 30 :initial-element 0d0))
+	 (&ign (setf (aref arr 1) 1d0))
+	 (system (make-instance 'eir:ebit-system
+				:nuclides
+				(list (nubase:get-entry-for 20 8))))
+	 (problem (make-instance 'ebitode:problem
+				 :problem-type :ode-problem
+				 :initial-values arr
+				 :rate-list (eir:get-decay-rates system)
+				 :indices (eir:indices system)
+				 :time-span (make-instance 'ebitode:time-span
+							   :start 0.0d0 :stop 1.5d0)
+				 :saveat (generate-decade-reporting 1d-6 100 1.5)
+				 :config (make-instance 'ebitode:problem-configuration)))
+	 (message (make-instance 'ebitode:message :msg-type :solve-ode
+						  :ode-problem problem))
+	 (binary-types:*endian* :little-endian)
+	 (byte-buffer (proto:serialize-object-to-bytes message 'ebitode:message)))
+    (usocket:with-client-socket (socket stream "localhost" port :element-type '(unsigned-byte 8))
+      (binary-types:write-binary 'binary-types:u32 stream (length byte-buffer))
+      (write-sequence byte-buffer stream)
+      (finish-output stream)
+
+      (let* ((len (binary-types:read-binary 'binary-types:u32 stream))
+	     (buffer (make-array len :element-type '(unsigned-byte 8))))
+	(read-sequence buffer stream)
+	(proto:deserialize-object 'ebitode:message buffer)))))
 
 
 
-(proto:deserialize-object-from-file 'ebitode:problem "/home/renee/tmp/test2.serialize")
 
-(let+ (((&slots ebitode:values ebitode:times)
-	(proto:deserialize-object-from-file 'ebitode:result "/home/renee/tmp/test4.serialized")))
+
+  
+
+
+
+
+
+(proto:deserialize-object-from-file 'ebitode:message "/home/renee/tmp/test4.serialized")
+
+(let+ ((res-msg (test 2004))
+       ((&slots ebitode:values ebitode:times) (ebitode:ode-result res-msg)))
   (labels ((cmd (fmt-str &rest args)
 	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
     (mgl-gnuplot:with-session ()

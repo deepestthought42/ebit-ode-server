@@ -6,7 +6,7 @@ export solveODE, packODEResult
     
 using DifferentialEquations
 using ProtoBuf
-using SparseArrays
+# using SparseArrays
 using ParameterizedFunctions
 
 
@@ -52,7 +52,7 @@ function packValues(solution, indices)
     len_t = length(s.t)
     len_i = length(indices)
 
-    ret = [EbitODE.ValuesPerIndex(index=index, values=Array{Float64}(undef, len_t)) for index in indices]
+    ret = [EbitODE.ValuesPerIndex(index=index, values=Array{Float64}(len_t)) for index in indices]
 
     for t in 1:len_t
         for i in 1:len_i
@@ -72,12 +72,15 @@ function packODEResult(solution, problem, start, stop)
                           times=solution.t, values=values)
 end
 
+function packODEMsg(res)
+    return EbitODE.Message(MsgType=EbitODE.MessageType.ODEResult, ODEResult = res)
+end
 
 function solveODE(problem)
     start = time()
     sol = solve(createDiffEqProb(problem), saveat=problem.saveat)
     stop = time()
-    return packODEResult(sol, problem, start, stop)
+    return packODEMsg(packODEResult(sol, problem, start, stop))
 end
 
 

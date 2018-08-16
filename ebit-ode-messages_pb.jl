@@ -5,7 +5,7 @@ import ProtoBuf.meta
 
 struct __enum_Status <: ProtoEnum
     Idle::Int32
-    SolivingODE::Int32
+    SolivingODEInProgress::Int32
     __enum_Status() = new(0,1)
 end #struct __enum_Status
 const Status = __enum_Status()
@@ -28,6 +28,16 @@ struct __enum_ReturnCode <: ProtoEnum
     __enum_ReturnCode() = new(0,1,2,3,4,5,6,7)
 end #struct __enum_ReturnCode
 const ReturnCode = __enum_ReturnCode()
+
+struct __enum_MessageType <: ProtoEnum
+    SolveODE::Int32
+    ODEResult::Int32
+    StatusUpdate::Int32
+    StopServer::Int32
+    Error::Int32
+    __enum_MessageType() = new(1,2,3,4,5)
+end #struct __enum_MessageType
+const MessageType = __enum_MessageType()
 
 mutable struct Index <: ProtoType
     A::Int32
@@ -110,4 +120,22 @@ end #mutable struct Result
 const __req_Result = Symbol[:problem,:return_code,:start_time,:stop_time]
 meta(t::Type{Result}) = meta(t, __req_Result, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
-export Status, ProblemType, ReturnCode, Index, Rate, RateList, Update, ProblemConfiguration, TimeSpan, Problem, ValuesPerIndex, Result
+mutable struct ErrorEncountered <: ProtoType
+    msg::AbstractString
+    ErrorEncountered(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
+end #mutable struct ErrorEncountered
+const __req_ErrorEncountered = Symbol[:msg]
+meta(t::Type{ErrorEncountered}) = meta(t, __req_ErrorEncountered, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+
+mutable struct Message <: ProtoType
+    MsgType::Int32
+    ODEProblem::Problem
+    ODEResult::Result
+    status::Int32
+    err::ErrorEncountered
+    Message(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
+end #mutable struct Message
+const __req_Message = Symbol[:MsgType]
+meta(t::Type{Message}) = meta(t, __req_Message, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+
+export Status, ProblemType, ReturnCode, MessageType, Index, Rate, RateList, Update, ProblemConfiguration, TimeSpan, Problem, ValuesPerIndex, Result, ErrorEncountered, Message
