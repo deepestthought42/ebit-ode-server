@@ -1,8 +1,9 @@
 module EbitSolver
 
 using EbitODE
+using MicroLogging
 
-export solveODE, packODEResult
+export solve_ode, pack_ode_result
     
 using DifferentialEquations
 using ProtoBuf
@@ -12,7 +13,7 @@ using ParameterizedFunctions
 
 
 
-RetCodes = Dict(
+_ret_codes_ = Dict(
     :Default => 0,
     :Success => 1,
     :MaxIters => 2,
@@ -25,29 +26,38 @@ RetCodes = Dict(
 
 
 
-function createMatrix(rateList)
-    retVal = zeros(rateList.dimension, rateList.dimension)
-    for r in rateList.rates
-        retVal[r.destination.i,r.origin.i] += r.RateInHz
-        retVal[r.origin.i,r.origin.i] -= r.RateInHz
+function create_matrix(rate_list)
+    ret_val = zeros(rate_list.dimension, rate_list.dimension)
+    for r in rate_list.rates
+        ret_val[r.destination.i,r.origin.i] += r.RateInHz
+        ret_val[r.origin.i,r.origin.i] -= r.RateInHz
     end
-    return retVal
+    return ret_val
 end
 
+function create_initial_value_vector(problem::EbitODE.Problem)
+    initial_values = zeros(problem.rate_list.dimension)
+    for init in problem.initial_population
+        initial_values[init.index.i] = init.value
+    end
+    return initial_values
+end
 
-function createDiffEqProb(problem)
+function create_diffeq_prob(problem::EbitODE.Problem)
     if problem.problem_type == EbitODE.ProblemType.ODEProblem
-        A = createMatrix(problem.rate_list)
+        A = create_matrix(problem.rate_list)
         f(u,p,t) = A*u
         tspan = (problem.time_span.start, problem.time_span.stop)
-        return ODEProblem(f, problem.initial_values, tspan) 
+        initial_values = create_initial_value_vector(problem)
+        @info "Created initial values from list" initial_values
+        return ODEProblem(f, initial_values, tspan) 
     else
         throw(ErrorException("Unknown Problem type"))
     end
 end
 
 
-function packValues(solution, indices)
+function pack_values(solution, indices)
     s = solution
     len_t = length(s.t)
     len_i = length(indices)
@@ -65,30 +75,22 @@ end
 
 
 
-function packODEResult(solution, problem, start, stop)
-    values = packValues(solution, problem.indices)
+function pack_ode_result(solution, problem, start, stop)
+    vals = pack_values(solution, problem.indices)
     return EbitODE.Result(problem=problem, start_time=start, stop_time=stop, 
-                          return_code=get(RetCodes, solution.retcode, 0),
-                          times=solution.t, values=values)
+                          return_code=get(_ret_codes_, solution.retcode, 0),
+                          times=solution.t, values=vals)
 end
 
-function packODEMsg(res)
+function pack_ode_msg(res)
     return EbitODE.Message(MsgType=EbitODE.MessageType.ODEResult, ODEResult = res)
 end
 
-function solveODE(problem)
-    start = time()
-    sol = solve(createDiffEqProb(problem), saveat=problem.saveat)
+@noinline function solve_ode(problem)
+    start_ = time()
+    sol = solve(create_diffeq_prob(problem), saveat=problem.saveat)
     stop = time()
-    return packODEMsg(packODEResult(sol, problem, start, stop))
-end
-
-
-
-function writeResult(res, filename)
-    iob = PipeBuffer()
-    writeproto(iob, res)
-    write(filename, iob)
+    return pack_ode_msg(pack_ode_result(sol, problem, start_, stop))
 end
 
 

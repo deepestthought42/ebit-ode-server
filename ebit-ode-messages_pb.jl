@@ -87,6 +87,14 @@ end #mutable struct TimeSpan
 const __req_TimeSpan = Symbol[:start,:stop]
 meta(t::Type{TimeSpan}) = meta(t, __req_TimeSpan, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
+mutable struct InitialPopulation <: ProtoType
+    index::Index
+    value::Float64
+    InitialPopulation(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
+end #mutable struct InitialPopulation
+const __req_InitialPopulation = Symbol[:index,:value]
+meta(t::Type{InitialPopulation}) = meta(t, __req_InitialPopulation, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+
 mutable struct Problem <: ProtoType
     problem_type::Int32
     time_span::TimeSpan
@@ -95,6 +103,7 @@ mutable struct Problem <: ProtoType
     saveat::Base.Vector{Float64}
     config::ProblemConfiguration
     indices::Base.Vector{Index}
+    initial_population::Base.Vector{InitialPopulation}
     Problem(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Problem
 const __req_Problem = Symbol[:problem_type,:time_span,:rate_list,:config]
@@ -138,4 +147,4 @@ end #mutable struct Message
 const __req_Message = Symbol[:MsgType]
 meta(t::Type{Message}) = meta(t, __req_Message, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
-export Status, ProblemType, ReturnCode, MessageType, Index, Rate, RateList, Update, ProblemConfiguration, TimeSpan, Problem, ValuesPerIndex, Result, ErrorEncountered, Message
+export Status, ProblemType, ReturnCode, MessageType, Index, Rate, RateList, Update, ProblemConfiguration, TimeSpan, InitialPopulation, Problem, ValuesPerIndex, Result, ErrorEncountered, Message

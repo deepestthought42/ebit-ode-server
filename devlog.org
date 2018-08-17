@@ -99,18 +99,19 @@ and connect to it
 
 (defun test (port)
   (let+ ((arr (make-array 30 :initial-element 0d0))
-	 (&ign (setf (aref arr 1) 1d0))
 	 (system (make-instance 'eir:ebit-system
-				:nuclides
-				(list (nubase:get-entry-for 20 8))))
+				:beam-radius-in-um 100d0
+				:initial-populations '((:a 24 :z 8 :q 1 :value 1d0))
+				:nuclides (list (nubase:get-entry-for 24 8))))
 	 (problem (make-instance 'ebitode:problem
 				 :problem-type :ode-problem
 				 :initial-values arr
+				 :initial-population (eir:initial-populations system)
 				 :rate-list (eir:get-decay-rates system)
 				 :indices (eir:indices system)
 				 :time-span (make-instance 'ebitode:time-span
-							   :start 0.0d0 :stop 1.5d0)
-				 :saveat (generate-decade-reporting 1d-6 100 1.5)
+							   :start 0.0d0 :stop 15d0)
+				 :saveat (generate-decade-reporting 1d-6 200 15)
 				 :config (make-instance 'ebitode:problem-configuration)))
 	 (message (make-instance 'ebitode:message :msg-type :solve-ode
 						  :ode-problem problem))
@@ -130,15 +131,9 @@ and connect to it
 
 
 
-  
-
-
-
-
-
 (proto:deserialize-object-from-file 'ebitode:message "/home/renee/tmp/test4.serialized")
 
-(let+ ((res-msg (test 2004))
+(let+ ((res-msg (test 2000))
        ((&slots ebitode:values ebitode:times) (ebitode:ode-result res-msg)))
   (labels ((cmd (fmt-str &rest args)
 	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
@@ -155,10 +150,15 @@ and connect to it
 		(for tt in ebitode:times)
 		(for y in (ebitode:values v))
 		(collect (list tt y)))
-	      "with lines title ''")))) 
+	      (let ((dt (mod (+ (/ (ebitode:i (ebitode:index v)) 10)) 10)))
+		(if (= 0 (ebitode:q (ebitode:index v)))
+		    (format nil "with lines dt ~D title '^{~D}~a'"
+			    dt
+			    (ebitode:a (ebitode:index v)) 
+			    (ionization-energies:get-name-for-z (ebitode:z (ebitode:index v))))
+		    (format nil "with lines dt ~D title ''" dt))))))) 
       (cmd "unset output")))
-
-  )
+  res-msg)
 #+END_SRC
 
 * ideas / scratch
