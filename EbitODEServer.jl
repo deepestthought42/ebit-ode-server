@@ -1,5 +1,7 @@
 module EbitODEServer
 
+export start_ode_server
+
 using EbitSolver
 using EbitODE
 using MicroLogging

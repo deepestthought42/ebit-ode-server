@@ -71,9 +71,9 @@
 
 #+RESULTS:
 : ; No value
-*** [2018-08-13 Mon 09:36] so, let's introduce a pipeserver in julia 
+** [2018-08-13 Mon 09:36] so, let's introduce a pipeserver in julia 
 and connect to it 
-**** but first: test protobuf protocol via a file
+*** but first: test protobuf protocol via a file
 #+BEGIN_SRC lisp
 (with-project-dir:with-project-dir ("/home/renee/phd/src/charge-distribution.project/")
   (ql:quickload :ebit-ode-interface))
@@ -160,8 +160,14 @@ and connect to it
       (cmd "unset output")))
   res-msg)
 #+END_SRC
-
+** [2018-08-17 Fri 09:30] interaction between lisp and julia is working, 
+NA: complete calculations
+- first, let's make the rate protobuf a bit more general by introducing a tag indicating
+  the type of value represented by the dimension (number, temperature in our case)
+- to avoid complications with q=0, remove neutral atoms from the calculations
 * ideas / scratch
+* differential equations
+
 * Performance enhancements with julia
 ** TODO look at split ODE types
 http://docs.juliadiffeq.org/stable/types/split_ode_types.html
