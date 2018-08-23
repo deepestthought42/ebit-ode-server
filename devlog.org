@@ -97,26 +97,49 @@ and connect to it
 	(in outer (collect val))))))
 
 
+(defun make-diff-eq-params (system)
+  (let+ (((&slots eir:initial-populations eir:initial-temperature-in-ev
+		  eir:trap-length-in-m eir:indices eir:v{r_e}
+		  eir:trap-depth-in-V eir:beam-radius-in-um)
+	  system)
+	 ((&values rates dimension) (eir:get-decay-rates system)))
+    (make-instance 'ebitodemessages:diff-eq-parameters
+		   :initial-population eir:initial-populations
+		   :initial-temperature eir:initial-temperature-in-ev
+		   :indices eir:indices 
+		   :no-dimensions dimension
+		   :q-ve (eir:get-qve eir:indices eir:v{r_e})
+		   :q-vt (eir:get-qvt eir:indices eir:trap-depth-in-V)
+		   :mass-number (eir:get-mass-numbers eir:indices)
+		   :rate-of-change-divided-by-n rates
+		   :one-over-pi-times-l (/ 1d0 (* pi eir:trap-length-in-m))
+		   :electron-radius-in-m-squared (* eir:beam-radius-in-um eir:beam-radius-in-um 1d-12))))
+
+(make-diff-eq-params (make-instance 'eir:ebit-system
+				:beam-radius-in-um 100d0
+				:initial-populations '((:a 20 :z 8 :q 1 :value 1d0))
+				:nuclides (list (nubase:get-entry-for 20 8))))
+
 (defun test (port)
-  (let+ ((arr (make-array 30 :initial-element 0d0))
-	 (system (make-instance 'eir:ebit-system
+  (let+ ((system (make-instance 'eir:ebit-system
 				:beam-radius-in-um 100d0
 				:initial-populations '((:a 24 :z 8 :q 1 :value 1d0))
 				:nuclides (list (nubase:get-entry-for 24 8))))
-	 (problem (make-instance 'ebitode:problem
-				 :problem-type :ode-problem
-				 :initial-values arr
-				 :initial-population (eir:initial-populations system)
-				 :rate-list (eir:get-decay-rates system)
-				 :indices (eir:indices system)
-				 :time-span (make-instance 'ebitode:time-span
-							   :start 0.0d0 :stop 15d0)
-				 :saveat (generate-decade-reporting 1d-6 200 15)
-				 :config (make-instance 'ebitode:problem-configuration)))
-	 (message (make-instance 'ebitode:message :msg-type :solve-ode
-						  :ode-problem problem))
+	 (problem (make-instance 'ebitodemessages:solve-ode-problem
+				 :problem-parameters
+				 (make-instance 'ebitodemessages:problem-parameters
+						:time-span (make-instance 'ebitodemessages:time-span
+									  :start 0.0d0 :stop 15d0)
+						:problem-type :ode-problem)
+				 :sovler-parameters
+				 (make-instance 'ebitodemessages:solver-parameters
+						:saveat (generate-decade-reporting 1d-6 200 15))
+				 :diff-eq-parameters
+				 (make-diff-eq-params system)))
+	 (message (make-instance 'ebitodemessages:message :msg-type :solve-ode
+							  :ode-problem problem))
 	 (binary-types:*endian* :little-endian)
-	 (byte-buffer (proto:serialize-object-to-bytes message 'ebitode:message)))
+	 (byte-buffer (proto:serialize-object-to-bytes message 'ebitodemessages:message)))
     (usocket:with-client-socket (socket stream "localhost" port :element-type '(unsigned-byte 8))
       (binary-types:write-binary 'binary-types:u32 stream (length byte-buffer))
       (write-sequence byte-buffer stream)
@@ -125,7 +148,7 @@ and connect to it
       (let* ((len (binary-types:read-binary 'binary-types:u32 stream))
 	     (buffer (make-array len :element-type '(unsigned-byte 8))))
 	(read-sequence buffer stream)
-	(proto:deserialize-object 'ebitode:message buffer)))))
+	(proto:deserialize-object 'ebitodemessages:message buffer)))))
 
 
 
@@ -156,7 +179,7 @@ and connect to it
 			    dt
 			    (ebitode:a (ebitode:index v)) 
 			    (ionization-energies:get-name-for-z (ebitode:z (ebitode:index v))))
-		    (format nil "with lines dt ~D title ''" dt))))))) 
+y		    (format nil "with lines dt ~D title ''" dt))))))) 
       (cmd "unset output")))
   res-msg)
 #+END_SRC

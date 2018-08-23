@@ -3,19 +3,19 @@ module EbitODEServer
 export start_ode_server
 
 using EbitSolver
-using EbitODE
+using EbitODEMessages
 using MicroLogging
 using ProtoBuf
 
 function create_proto_msg(buffer)
-    @info "Creating EbitODE.Message() from buffer"
-    return readproto(PipeBuffer(buffer), EbitODE.Message())
+    @info "Creating EbitODEMessages.Message() from buffer"
+    return readproto(PipeBuffer(buffer), EbitODEMessages.Message())
 end
 
 
 function create_proto_err_msg(msg::AbstractString)
-    return EbitODE.Message(MsgType=EbitODE.MessageType.Error, 
-                           err = EbitODE.ErrorEncountered(msg=msg))
+    return EbitODEMessages.Message(MsgType=EbitODEMessages.MessageType.Error, 
+                                   err = EbitODEMessages.ErrorEncountered(msg=msg))
 end
 
 function read_msg_from_stream(socket::IO)
@@ -28,9 +28,9 @@ function read_msg_from_stream(socket::IO)
 end    
 
 
-function process(msg::EbitODE.Message)
+function process(msg::EbitODEMessages.Message)
     try 
-        if msg.MsgType == EbitODE.MessageType.SolveODE
+        if msg.MsgType == EbitODEMessages.MessageType.SolveODE
             ret = EbitSolver.solve_ode(msg.ODEProblem)
             return ret
         end

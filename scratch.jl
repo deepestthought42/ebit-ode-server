@@ -81,30 +81,13 @@ function c2(symbol)
 end
 
 
-@noinline function dtau(τ, N, qVe, qVt, A, ϕ, χ, re2, L)
-    ri2 = re2.*(τ./qVt) # ion radius squared
-    n = (1/(L*π)).*(N./ri2) # ion density
-    Σ = (χ.*n) .* ( τ./A .+ (τ./A).' ).^(-3/2) # 1 / relaxation time
-
-    ν = sum(Σ,2) # collision frequency
-    ω = qVt./τ # thermodynamic temperature scaled by trap depth
-    Resc = 3/sqrt(3) .* ν .* exp.(-ω) ./ ω # rate of escape
-
-    fe = qVe./τ # electron-ion overlap
-    fij = (τ.'./τ).*(qVe.'./qVe)  # ion-ion overlap
-
-    dBeam = (fe .* ϕ) # Spitzer heating
-    dEscape = - Resc .* (τ .+ qVt) # heat loss due to escape
-    dExchange = sum(fij .* Σ .* (τ.' .- τ), 2) # heat exchange
-    return dBeam .+ dEscape .+ dExchange 
-end
-
-
-function test()
-    dtau(c1(:τ), c1(:N), c1(:qVe), c1(:qVt), c1(:A), c1(:ϕ), c2(:χ), "re2", "L")
-end
-
 τ = c1(:τ)
 A = c1(:A)
-sum((τ./A .+ (τ./A).').*(τ.' .- τ), 2)
+n = c1(:n)
+Χ = c1(:Χ)
+N = c1(:N)
+CX = c2(:CX)
+
+(τ.' .* CXb)*N
+
 
