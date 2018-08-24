@@ -1,4 +1,4 @@
-push!(LOAD_PATH, "/home/renee/phd/src/charge-distribution.project/ebit-ode-server/")
+push!(LOAD_PATH, "/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/")
 
 using EbitODEServer
 import Base.+, Base.*, Base./, Base.-, Base.zero, Base.transpose, Base.exp, Base.^
@@ -6,7 +6,7 @@ import Base.+, Base.*, Base./, Base.-, Base.zero, Base.transpose, Base.exp, Base
 
 
 function join_symbol(a, b)
-    return string(string(a), string(b))
+     return string(string(a), string(b))
 end
 
 function check_empty(a, b, default)

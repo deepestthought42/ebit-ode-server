@@ -12,7 +12,7 @@
 #+END_SRC
 
 #+BEGIN_SRC lisp :results none
-(with-project-dir:with-project-dir ("/home/renee/phd/src/charge-distribution.project/")
+(with-project-dir:with-project-dir ("/home/renee/phd/src/ebit-evolution.project/")
   (ql:quickload :ebit-interaction-rates)
   (ql:quickload :ebit-differential-equations))
 #+END_SRC
@@ -75,7 +75,7 @@
 and connect to it 
 *** but first: test protobuf protocol via a file
 #+BEGIN_SRC lisp
-(with-project-dir:with-project-dir ("/home/renee/phd/src/charge-distribution.project/")
+(with-project-dir:with-project-dir ("/home/renee/phd/src/ebit-evolution.project/")
   (ql:quickload :ebit-ode-interface))
 #+END_SRC
 
@@ -99,41 +99,42 @@ and connect to it
 
 (defun make-diff-eq-params (system)
   (let+ (((&slots eir:initial-populations eir:initial-temperature-in-ev
-		  eir:trap-length-in-m eir:indices eir:v{r_e}
+		  eir:trap-length-in-m eir::nuclide-indices eir:v{r_e}
 		  eir:trap-depth-in-V eir:beam-radius-in-um)
 	  system)
 	 ((&values rates dimension) (eir:get-decay-rates system)))
     (make-instance 'ebitodemessages:diff-eq-parameters
-		   :initial-population eir:initial-populations
-		   :initial-temperature eir:initial-temperature-in-ev
-		   :indices eir:indices 
+		   :initial-values eir:initial-populations
 		   :no-dimensions dimension
-		   :q-ve (eir:get-qve eir:indices eir:v{r_e})
-		   :q-vt (eir:get-qvt eir:indices eir:trap-depth-in-V)
-		   :mass-number (eir:get-mass-numbers eir:indices)
+		   :q-ve (eir:get-qve eir:nuclide-indices eir:v{r_e})
+		   :q-vt (eir:get-qvt eir:nuclide-indices eir:trap-depth-in-V)
+		   :mass-number (eir:get-mass-numbers eir:nuclide-indices)
 		   :rate-of-change-divided-by-n rates
+		   :spitzer-divided-by-overlap (eir:spitzer-heating-constant system eir:nuclide-indices)
 		   :one-over-pi-times-l (/ 1d0 (* pi eir:trap-length-in-m))
+		   :inverted-collision-constant (eir:collision-frequency eir:nuclide-indices)
 		   :electron-radius-in-m-squared (* eir:beam-radius-in-um eir:beam-radius-in-um 1d-12))))
 
 (make-diff-eq-params (make-instance 'eir:ebit-system
-				:beam-radius-in-um 100d0
-				:initial-populations '((:a 20 :z 8 :q 1 :value 1d0))
-				:nuclides (list (nubase:get-entry-for 20 8))))
+				    :beam-radius-in-um 100d0
+				    :initial-populations '((:a 20 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				    :nuclides (list (nubase:get-entry-for 20 8))))
 
 (defun test (port)
   (let+ ((system (make-instance 'eir:ebit-system
 				:beam-radius-in-um 100d0
-				:initial-populations '((:a 24 :z 8 :q 1 :value 1d0))
-				:nuclides (list (nubase:get-entry-for 24 8))))
+				:initial-populations '((:a 19 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				:nuclides (list (nubase:get-entry-for 19 8))))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 15d0)
+									  :start 0.0d0 :stop 0.015d0)
 						:problem-type :ode-problem)
-				 :sovler-parameters
+				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
 						:saveat (generate-decade-reporting 1d-6 200 15))
+				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system)))
 	 (message (make-instance 'ebitodemessages:message :msg-type :solve-ode
@@ -156,8 +157,11 @@ and connect to it
 
 (proto:deserialize-object-from-file 'ebitode:message "/home/renee/tmp/test4.serialized")
 
-(let+ ((res-msg (test 2000))
-       ((&slots ebitode:values ebitode:times) (ebitode:ode-result res-msg)))
+(let+ ((res-msg (test 2006))
+       ((&slots ebitodemessages:values ebitodemessages:times) (ebitodemessages:ode-result res-msg)))
+  ,#+nil
+  (if (ebitodemessages:error-encountered res-msg)
+      (error "Error encountered"))
   (labels ((cmd (fmt-str &rest args)
 	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
     (mgl-gnuplot:with-session ()
@@ -166,20 +170,19 @@ and connect to it
       (cmd "set logscale x")
       (mgl-gnuplot:plot*
        (iter
-	 (for v in ebitode:values)
+	 (for v in ebitodemessages:values)
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
-		(for tt in ebitode:times)
-		(for y in (ebitode:values v))
+		(for tt in ebitodemessages:times)
+		(for y in (ebitodemessages:values v))
 		(collect (list tt y)))
-	      (let ((dt (mod (+ (/ (ebitode:i (ebitode:index v)) 10)) 10)))
-		(if (= 0 (ebitode:q (ebitode:index v)))
-		    (format nil "with lines dt ~D title '^{~D}~a'"
-			    dt
-			    (ebitode:a (ebitode:index v)) 
-			    (ionization-energies:get-name-for-z (ebitode:z (ebitode:index v))))
-y		    (format nil "with lines dt ~D title ''" dt))))))) 
+	      (if (= 0 (ebitodemessages:q (ebitodemessages:index v)))
+		  (format nil "with lines dt ~D title '^{~D}~a'"
+			  dt
+			  (ebitodemessages:a (ebitodemessages:index v)) 
+			  (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:index v))))
+		  (format nil "with lines dt ~D title ''" dt)))))) 
       (cmd "unset output")))
   res-msg)
 #+END_SRC
@@ -190,6 +193,118 @@ NA: complete calculations
 - to avoid complications with q=0, remove neutral atoms from the calculations
 * ideas / scratch
 * differential equations
+
+** heat
+
+we evolve the total energy balance equation since the flow of energy between the
+participating particles is dependent on heating/cooling and exchange of particles
+themselves. 
+
+Assumptions:
+- electron beam current / density unchanged during time evolution
+
+The set of equations for the energy is given by:
+#+NAME: eq:energy-balance
+\begin{equation}
+  \frac{d}{dt} \left[ \frac{3}{2} N_iT_i \right] = 
+  \frac{d}{dt} \left[ \frac{3}{2}N_iT_i \right]^{Spitzer} + 
+  \frac{d}{dt} \left[ \frac{3}{2}N_iT_i \right]^{Exchange} + 
+  \frac{d}{dt} \left[ \frac{3}{2}N_iT_i \right]^{Escape} 
+\end{equation}
+
+*** Spitzer heating:
+Spitzer heating is given by:
+\begin{equation}
+  \frac{d}{dt} E^{Spitzer} =
+  f_{e,i}N_iJ_e \frac{eq_i^2\ln\Lambda_{e,i}}{4\pi\epsilon_0^2m_iv_e^2} =
+  f_{e,i}N_i\ln\Lambda_{e,i}\cdot 1.569\cdot10^{15}\frac{J_e\hat{q}^{2}_i}{\mu_iv_e^2}\ \left[ \frac{eV}{s}  \right]         
+\end{equation}
+
+with the electron-ion Coulomb logrithm assumed to be $ln\Lambda_{e,i} = 10$ and the
+current density $J_e$ given in A/cm^2 and the electron speed v_e given in cm/s:
+*** Escape cooling
+\begin{equation}
+\left[\frac{dE}{dt}\right]^{escape}
+       = - \left( \frac{2}{3}E_{i} + N_iq_iV_t \right)R_i^{Esc}
+\end{equation}
+
+*** Heat exchange  
+\begin{equation}
+  \left[\frac{dE}{dt} \right]^{\mathrm{exchange}}
+  = N_i\sum_{j,\alpha}f_{i,j}\tau_{i,j}^{-1}k(T_j-T_i)
+  =  \frac{2}{3}\sum_{j,\alpha}\tau_{i,j}^{-1}f_{i,j}\left( E_{j} - E_{i} \right)
+\end{equation}
+
+*** overlap factor
+the overlap factor is defined as:
+
+#+NAME: eq:overlap-factor
+\begin{equation}
+  f_{e,i} = \left( \frac{r_e}{r_i} \right)^2	
+\end{equation}
+
+and the characteristic radius $r_i$ given as:
+
+#+NAME: eq:ion-characteristic-radius
+\begin{equation}
+  r_i =
+  \begin{cases}
+    r_e\sqrt{\frac{k_bT_i}{q_ieV_e}}, & \text{if}\ q_ieV_e > k_bT_i \\
+    r_e\exp{\left[ \frac{k_bT_i}{2q_ieV_e}-\frac{1}{2} \right]}, & \text{if}\ q_ieV_e \leq k_bT_i \\
+  \end{cases}
+\end{equation}
+
+ignoring the difference and assuming the 1/x dpendence, we define the
+overlap as:
+
+#+NAME: eq:overlap-used
+\begin{equation}
+  	f_{e,i} = \frac{q_iV_e}{k_bT_i} = \frac{3}{2}q_iV_e\frac{N_i}{E_i}
+\end{equation}
+
+using the same simplification we arrive for the ion-ion overlap, at:
+
+#+NAME: eq:ion-ion-overlap
+\begin{equation}
+  	f_{i,j} = \frac{N_jq_jE_i}{N_iq_iE_j}
+\end{equation}
+
+*** density
+\begin{equation}
+n_i \left( E_i, N_i \right) = \frac{q_iV_e}{L\pi r^2_e}\cdot \frac{N_i^2}{E_i}
+\end{equation}
+
+*** ion relaxation time:
+#+NAME: eq:ion-relaxation-time
+\begin{equation}
+  \tau_{ij} = \frac{3(2\pi)^{3/2}\epsilon_0m_im_j}{2q^{2}_iq^2_jn_j\ln\Lambda_{ij}}
+  \left( \frac{kT_i}{m_i} + \frac{kT_j}{m_j} \right)^{3/2}
+\end{equation}
+
+#+NAME: eq:
+\begin{equation}
+  \tau_{ij} = 7.37\cdot10^{12}\frac{A_iA_j}{\hat{q}_i^2\hat{q}_j^2n_j\ln\Lambda_{i,j}}
+  \times \left( \frac{kT_i}{A_i} + \frac{kT_j}{A_j} \right)^{3/2} \left[ s \right]
+  = 4.01\cdot10^{12}\frac{A_iA_j}{\hat{q}_i^2\hat{q}_j^2n_j\ln\Lambda_{i,j}}
+  \times \left( \frac{E_i}{N_iA_i} + \frac{E_j}{N_jA_j} \right)^{3/2} \left[ s \right].
+\end{equation}
+
+
+*** Rate of escape
+#+NAME: eq:rate-axial-escape
+\begin{equation}
+  R_i^{Esc} = \frac{3}{\sqrt{3}}\nu_i \frac{e^{-\omega_i}}{\omega_i}, 
+\end{equation}
+where $\nu_i = \sum_{j,\alpha}f_{i,j}\tau^{-1}_{i,j}$ is the Coulomb collision frequency
+for ions of charge state $q_i$ with /all/ other ion species and $\omega_i$ is given by:
+#+NAME: eq:ebit-omega-i
+\begin{equation}
+  \omega_i= \frac{q_iV_t}{kT_i} = \frac{3N_iq_iV_t}{2E_i},  
+\end{equation}  
+
+** todos
+*** TODO include charge exchange
+
 
 * Performance enhancements with julia
 ** TODO look at split ODE types
@@ -203,9 +318,9 @@ http://docs.juliadiffeq.org/stable/features/diffeq_operator.html
 #+BEGIN_SRC shell :results none
 export PATH="$PATH:/home/renee/.julia/packages/ProtoBuf/w5yif/plugin/"
 export JULIA=~/src/julia-0.7.0/bin/julia 
-protoc -I /home/renee/phd/src/charge-distribution.project/ebit-ode-server/ebit-ode-msg/ \
-        --julia_out=/home/renee/phd/src/charge-distribution.project/ebit-ode-server/\
-        /home/renee/phd/src/charge-distribution.project/ebit-ode-server/ebit-ode-msg/ebit-ode-messages.proto
+protoc -I /home/renee/phd/src/ebit-evolution.project/ebit-ode-msg/ \
+        --julia_out=/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/\
+        /home/renee/phd/src/ebit-evolution.project/ebit-ode-msg/ebit-ode-messages.proto
 #+END_SRC
 
 #+RESULTS:

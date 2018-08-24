@@ -50,20 +50,20 @@ const __req_Nuclide = Symbol[:A,:Z,:q,:i]
 meta(t::Type{Nuclide}) = meta(t, __req_Nuclide, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct MatrixValue <: ProtoType
-    Value::Float64
+    value::Float64
     row::UInt32
     column::UInt32
     MatrixValue(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct MatrixValue
-const __req_MatrixValue = Symbol[:Value,:row,:column]
+const __req_MatrixValue = Symbol[:value,:row,:column]
 meta(t::Type{MatrixValue}) = meta(t, __req_MatrixValue, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct Update <: ProtoType
     status::Int32
-    Message::AbstractString
+    message::AbstractString
     Update(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Update
-const __req_Update = Symbol[:status,:Message]
+const __req_Update = Symbol[:status,:message]
 meta(t::Type{Update}) = meta(t, __req_Update, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct TimeSpan <: ProtoType
@@ -74,13 +74,14 @@ end #mutable struct TimeSpan
 const __req_TimeSpan = Symbol[:start,:stop]
 meta(t::Type{TimeSpan}) = meta(t, __req_TimeSpan, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
-mutable struct ValueForIndex <: ProtoType
+mutable struct InitialValue <: ProtoType
     index::UInt32
-    value::Float64
-    ValueForIndex(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
-end #mutable struct ValueForIndex
-const __req_ValueForIndex = Symbol[:index,:value]
-meta(t::Type{ValueForIndex}) = meta(t, __req_ValueForIndex, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+    number_of_particles::Float64
+    temperature_in_ev::Float64
+    InitialValue(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
+end #mutable struct InitialValue
+const __req_InitialValue = Symbol[:index,:number_of_particles,:temperature_in_ev]
+meta(t::Type{InitialValue}) = meta(t, __req_InitialValue, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct DiffEqParameters <: ProtoType
     qVe::Base.Vector{Float64}
@@ -93,12 +94,11 @@ mutable struct DiffEqParameters <: ProtoType
     dCharge_ex_divided_by_N_times_tau::Base.Vector{MatrixValue}
     rate_of_change_divided_by_N::Base.Vector{MatrixValue}
     no_dimensions::UInt32
-    initial_population::Base.Vector{ValueForIndex}
-    initial_temperature::Base.Vector{ValueForIndex}
+    initial_values::Base.Vector{InitialValue}
     DiffEqParameters(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct DiffEqParameters
 const __req_DiffEqParameters = Symbol[:electron_radius_in_m_squared,:one_over_pi_times_L,:no_dimensions]
-const __fnum_DiffEqParameters = Int[1,2,3,4,5,6,7,9,10,11,13,14]
+const __fnum_DiffEqParameters = Int[1,2,3,4,5,6,7,9,10,11,13]
 meta(t::Type{DiffEqParameters}) = meta(t, __req_DiffEqParameters, __fnum_DiffEqParameters, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct ProblemParameters <: ProtoType
@@ -152,14 +152,14 @@ const __req_ErrorEncountered = Symbol[:msg]
 meta(t::Type{ErrorEncountered}) = meta(t, __req_ErrorEncountered, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct Message <: ProtoType
-    MsgType::Int32
-    ODEProblem::SolveODEProblem
-    ODEResult::Result
+    msg_type::Int32
+    ode_problem::SolveODEProblem
+    ode_result::Result
     status::Int32
     err::ErrorEncountered
     Message(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Message
-const __req_Message = Symbol[:MsgType]
+const __req_Message = Symbol[:msg_type]
 meta(t::Type{Message}) = meta(t, __req_Message, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
-export Status, ProblemType, ReturnCode, MessageType, Nuclide, MatrixValue, Update, TimeSpan, ValueForIndex, DiffEqParameters, ProblemParameters, SolverParameters, SolveODEProblem, ValuesPerNuclide, Result, ErrorEncountered, Message
+export Status, ProblemType, ReturnCode, MessageType, Nuclide, MatrixValue, Update, TimeSpan, InitialValue, DiffEqParameters, ProblemParameters, SolverParameters, SolveODEProblem, ValuesPerNuclide, Result, ErrorEncountered, Message

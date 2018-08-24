@@ -14,7 +14,7 @@ end
 
 
 function create_proto_err_msg(msg::AbstractString)
-    return EbitODEMessages.Message(MsgType=EbitODEMessages.MessageType.Error, 
+    return EbitODEMessages.Message(msg_type=EbitODEMessages.MessageType.Error, 
                                    err = EbitODEMessages.ErrorEncountered(msg=msg))
 end
 
@@ -30,11 +30,11 @@ end
 
 function process(msg::EbitODEMessages.Message)
     try 
-        if msg.MsgType == EbitODEMessages.MessageType.SolveODE
-            ret = EbitSolver.solve_ode(msg.ODEProblem)
+        if msg.msg_type == EbitODEMessages.MessageType.SolveODE
+            ret = EbitSolver.solve_ode(msg.ode_problem)
             return ret
         end
-        return create_proto_err_msg("Unable to handle msg type: $msg.MsgType")
+        return create_proto_err_msg("Unable to handle msg type: $msg.msg_type")
     catch e
         @warn "Catched exception" e
         return create_proto_err_msg("exception: $e")
@@ -53,9 +53,10 @@ function send_proto_msg_to_stream(message, socket)
 end
 
 function start_ode_server(port)
-    return @async begin
+    channel_to_stop = Channel(1)
+    @async begin
         server = listen(port)
-        try while true
+        try while !isready(channel_to_stop)
             socket = accept(server)
             @info "Accepting connection on port: $port"
             @async while isopen(socket)
@@ -64,14 +65,20 @@ function start_ode_server(port)
                     ret_val = process(msg)
                     send_proto_msg_to_stream(ret_val, socket)
                 catch e
-                    @warn "Caught exception" e
+                    if isa(e, EOFError)
+                        nothing
+                    else
+                        @warn "Caught exception" e
+                    end
                 end
             end
         end
         catch e 
             @info "Caught exception" e 
         end
+        @info "Closing EbitODEServer on port $port"
     end
+    return channel_to_stop
 end
 
 
