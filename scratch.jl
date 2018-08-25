@@ -1,5 +1,5 @@
 push!(LOAD_PATH, "/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/")
-
+using Revise
 using EbitODEServer
 import Base.+, Base.*, Base./, Base.-, Base.zero, Base.transpose, Base.exp, Base.^
 

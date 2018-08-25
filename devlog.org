@@ -123,8 +123,8 @@ and connect to it
 (defun test (port)
   (let+ ((system (make-instance 'eir:ebit-system
 				:beam-radius-in-um 100d0
-				:initial-populations '((:a 19 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
-				:nuclides (list (nubase:get-entry-for 19 8))))
+				:initial-populations '((:a 16 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				:nuclides (list (nubase:get-entry-for 16 8))))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
@@ -157,7 +157,7 @@ and connect to it
 
 (proto:deserialize-object-from-file 'ebitode:message "/home/renee/tmp/test4.serialized")
 
-(let+ ((res-msg (test 2006))
+(let+ ((res-msg (test 2012))
        ((&slots ebitodemessages:values ebitodemessages:times) (ebitodemessages:ode-result res-msg)))
   ,#+nil
   (if (ebitodemessages:error-encountered res-msg)
@@ -177,12 +177,9 @@ and connect to it
 		(for tt in ebitodemessages:times)
 		(for y in (ebitodemessages:values v))
 		(collect (list tt y)))
-	      (if (= 0 (ebitodemessages:q (ebitodemessages:index v)))
-		  (format nil "with lines dt ~D title '^{~D}~a'"
-			  dt
-			  (ebitodemessages:a (ebitodemessages:index v)) 
-			  (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:index v))))
-		  (format nil "with lines dt ~D title ''" dt)))))) 
+	      (format nil "with lines title '^{~D}~a'"
+		      (ebitodemessages:a (ebitodemessages:nuclide v)) 
+		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide v)))))))) 
       (cmd "unset output")))
   res-msg)
 #+END_SRC

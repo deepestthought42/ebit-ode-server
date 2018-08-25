@@ -72,14 +72,18 @@ end
 
 
 @inline function not_zero(a, when_not_zero, when_zero)
-    iszero(a) ? when_zero : when_not_zero
+    if isless(a, 0.0)
+        when_zero 
+    else
+        when_not_zero
+    end
 end
 
 
 function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, ::Any)
     N = view(u, 1:p.no_dimensions)
     Nτ = view(u, p.no_dimensions+1:p.no_dimensions*2)
-    τ = not_zero(N, (Nτ ./ N), 0.0)
+    τ = not_zero.(N, (Nτ ./ N), 0.0)
     
     dN = view(du, 1:p.no_dimensions)
     dτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
@@ -87,25 +91,31 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, ::Any
     
     ion_r² = p.rₑ²_in_m .* (τ./p.qVₜ) # ion radius squared
     n = p.Ł .* ( N./ion_r² ) # ion density
-    Σ = (p.χ .* n.') .* ( (τ./ p.A) .+ (τ./p.A).' ).^(-3/2) # 1 / relaxation time
+    arg = max.(0.0, (τ./ p.A) .+ (τ./p.A).' )
+    Σ = not_zero.(N, (p.χ .* n.') .* arg .^ (-1.5), 0.0) # 1 / relaxation time
 
     
     ν = sum(Σ,2) # collision frequency
-    ω = not_zero(τ, p.qVₜ ./ τ, 0.0) # thermodynamic temperature scaled by trap depth
+    ω = p.qVₜ ./ τ # thermodynamic temperature scaled by trap depth
     R_esc = 3/sqrt(3) .* ν .* exp.(-ω) ./ ω # rate of escape
 
-    fe = p.qVₑ ./ τ # electron-ion overlap
-    fij = not_zero(τ, 
-                   min.((τ.'./ τ) .* ((p.qVₑ).' ./ p.qVₑ), 1.0), 
-                   1.0)  # ion-ion overlap
+    fe = min.(p.qVₑ ./ τ, 1.0) # electron-ion overlap
+    fij = min.((τ.'./ τ) .* ((p.qVₑ).' ./ p.qVₑ), 1.0)  # ion-ion overlap
 
     dBeam = (fe .* p.ϕ) # Spitzer heating
     dEscape = - R_esc .* (τ .+ p.qVₜ) # heat loss due to escape
     dExchange = sum(fij .* Σ .* (τ.' .- τ), 2) # heat exchange
 
-    dτ = N .* (dBeam .+ dEscape .+ dExchange)
-    dN = ( N * p.dN ) + ( N .* ( (- R_esc) .- not_zero(τ, (p.CX.*τ), 0.0) ) )
+    dτ .= N .* (dBeam
+                # .+ dEscape
+                # .+ dExchange
+                )
+    dN .= ( p.dN * N ) # + ( N .* ( (- R_esc) .- not_zero(τ, (p.CX.*τ), 0.0) ) )
+
+    du
 end
+
+
 
 
 function create_initial_values(initial_values, dimensions)
@@ -119,10 +129,13 @@ function create_initial_values(initial_values, dimensions)
     return ret
 end
 
+
 function create_diffeq_prob(problem)
     if problem.problem_parameters.problem_type == EbitODEMessages.ProblemType.ODEProblem
         @info "Creating ODEProblem"
         p = EbitParameters(problem.diff_eq_parameters)
+
+        @info "Created differential equation parameters" p.dN
         
         tspan = (problem.problem_parameters.time_span.start, 
                  problem.problem_parameters.time_span.stop)
@@ -133,6 +146,9 @@ function create_diffeq_prob(problem)
         )
         
         @info "Created initial values from list" initial_values
+
+        global last_p = p
+        global last_initial_values = initial_values
         
         return ODEProblem(du, initial_values, tspan, p) 
     else
