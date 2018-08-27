@@ -52,11 +52,26 @@ function send_proto_msg_to_stream(message, socket)
     @info "Written message"
 end
 
-function start_ode_server(port)
-    channel_to_stop = Channel(1)
+
+
+function ode_bind_server(server, port)
+    if ( server.status == Base.StatusActive 
+         || server.status == Base.StatusOpen 
+         || server.status == Base.StatusConnecting )
+        close(server)
+    end        
+    new_server = Base.TCPServer()
+    
+    !bind(new_server, IPv4(UInt(0)), port) && error("cannot bind to port; may already be in use or access denied")
+    return new_server
+end
+
+
+@noinline function start_ode_server(port, server=Base.TCPServer())
+    server = ode_bind_server(server, port)
     @async begin
-        server = listen(port)
-        try while !isready(channel_to_stop)
+        listen(server)
+        try while true
             socket = accept(server)
             @info "Accepting connection on port: $port"
             @async while isopen(socket)
@@ -78,7 +93,7 @@ function start_ode_server(port)
         end
         @info "Closing EbitODEServer on port $port"
     end
-    return channel_to_stop
+    return server
 end
 
 
