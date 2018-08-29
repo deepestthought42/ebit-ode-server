@@ -14,7 +14,7 @@
 #+BEGIN_SRC lisp :results none
 (with-project-dir:with-project-dir ("/home/renee/phd/src/ebit-evolution.project/")
   (ql:quickload :ebit-interaction-rates)
-  (ql:quickload :ebit-differential-equations))
+  (ql:quickload :mgl-gnuplot))
 #+END_SRC
 *** so, what to do ?
 - create a list of indices
@@ -120,25 +120,36 @@ and connect to it
 				    :initial-populations '((:a 20 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
 				    :nuclides (list (nubase:get-entry-for 20 8))))
 
-(defun test (port)
+(defun create-test-msg ()
   (let+ ((system (make-instance 'eir:ebit-system
-				:beam-radius-in-um 100d0
+				:trap-depth-in-v 100d0
+				:beam-radius-in-um 50d0
 				:initial-populations '((:a 16 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
 				:nuclides (list (nubase:get-entry-for 16 8))))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 0.015d0)
+									  :start 0.0d0 :stop 20d0)
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-6 200 15))
+						:saveat (generate-decade-reporting 1d-6 200 20d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
-				 (make-diff-eq-params system)))
-	 (message (make-instance 'ebitodemessages:message :msg-type :solve-ode
-							  :ode-problem problem))
+				 (make-diff-eq-params system))))
+    (make-instance 'ebitodemessages:message :msg-type :solve-ode
+					    :ode-problem problem)))
+
+(with-open-file (stream "/home/renee/tmp/test_ode.proto"
+			:if-exists :supersede
+			:direction :output
+			:element-type '(unsigned-byte 8))
+    (proto:serialize-object-to-stream (create-test-msg) 'ebitodemessages:message :stream stream))
+
+
+(defun test (port)
+  (let+ ((message (create-test-msg))
 	 (binary-types:*endian* :little-endian)
 	 (byte-buffer (proto:serialize-object-to-bytes message 'ebitodemessages:message)))
     (usocket:with-client-socket (socket stream "localhost" port :element-type '(unsigned-byte 8))
@@ -157,8 +168,10 @@ and connect to it
 
 (proto:deserialize-object-from-file 'ebitode:message "/home/renee/tmp/test4.serialized")
 
-(let+ ((res-msg (test 2019))
-       ((&slots ebitodemessages:values ebitodemessages:times) (ebitodemessages:ode-result res-msg)))
+(let+ ((res-msg (proto:deserialize-object-from-file 'ebitodemessages:message
+						    "/home/renee/tmp/test_ode_answer.proto"))
+       ((&slots ebitodemessages:k-t ebitodemessages:times ebitodemessages:n)
+	(ebitodemessages:ode-result res-msg)))
   ,#+nil
   (if (ebitodemessages:error-encountered res-msg)
       (error "Error encountered"))
@@ -170,7 +183,9 @@ and connect to it
       (cmd "set logscale x")
       (mgl-gnuplot:plot*
        (iter
-	 (for v in ebitodemessages:values)
+	 (for kt in ebitodemessages:k-t)
+	 (for v in ebitodemessages:n)
+	 ,#+n
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
@@ -178,8 +193,17 @@ and connect to it
 		(for y in (ebitodemessages:values v))
 		(collect (list tt y)))
 	      (format nil "with lines title '^{~D}~a'"
-		      (ebitodemessages:a (ebitodemessages:nuclide v)) 
-		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide v)))))))) 
+		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
+		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt))))))
+	 (collect
+	     (mgl-gnuplot:data*
+	      (iter
+		(for tt in ebitodemessages:times)
+		(for y in (ebitodemessages:values kt))
+		(collect (list tt y)))
+	      (format nil "with lines dt 4 title '^{~D}~a'"
+		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
+		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))))))) 
       (cmd "unset output")))
   res-msg)
 #+END_SRC

@@ -138,7 +138,8 @@ mutable struct Result <: ProtoType
     start_time::Float64
     stop_time::Float64
     times::Base.Vector{Float64}
-    values::Base.Vector{ValuesPerNuclide}
+    n::Base.Vector{ValuesPerNuclide}
+    kT::Base.Vector{ValuesPerNuclide}
     Result(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Result
 const __req_Result = Symbol[:problem,:return_code,:start_time,:stop_time]

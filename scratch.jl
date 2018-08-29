@@ -5,6 +5,8 @@ import Base.+, Base.*, Base./, Base.-, Base.zero, Base.transpose, Base.exp, Base
 
 
 
+
+
 function join_symbol(a, b)
      return string(string(a), string(b))
 end
@@ -89,5 +91,4 @@ N = c1(:N)
 CX = c2(:CX)
 
 (τ.' .* CXb)*N
-
 

@@ -54,7 +54,10 @@ end
 
 
 
-function ode_bind_server(server, port)
+server = Base.TCPServer()
+
+function ode_bind_server(port)
+    global server
     if ( server.status == Base.StatusActive 
          || server.status == Base.StatusOpen 
          || server.status == Base.StatusConnecting )
@@ -63,12 +66,14 @@ function ode_bind_server(server, port)
     new_server = Base.TCPServer()
     
     !bind(new_server, IPv4(UInt(0)), port) && error("cannot bind to port; may already be in use or access denied")
-    return new_server
+    global server = new_server
 end
 
 
-@noinline function start_ode_server(port, server=Base.TCPServer())
-    server = ode_bind_server(server, port)
+
+
+@noinline function start_ode_server(port)
+    ode_bind_server(port)
     @async begin
         listen(server)
         try while true
@@ -93,7 +98,15 @@ end
         end
         @info "Closing EbitODEServer on port $port"
     end
-    return server
+     return server
+end
+
+
+function restart(port=2000)
+    include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitSolver.jl")
+    include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitODEServer.jl")
+
+    EbitODEServer.start_ode_server(port)
 end
 
 
