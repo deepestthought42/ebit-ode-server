@@ -130,11 +130,11 @@ and connect to it
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 20d0)
+									  :start 0.0d0 :stop 0.1d0)
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-6 200 20d0))
+						:saveat (generate-decade-reporting 1d-6 200 0.1d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system))))
@@ -243,6 +243,7 @@ Spitzer heating is given by:
 
 with the electron-ion Coulomb logrithm assumed to be $ln\Lambda_{e,i} = 10$ and the
 current density $J_e$ given in A/cm^2 and the electron speed v_e given in cm/s:
+
 *** Escape cooling
 \begin{equation}
 \left[\frac{dE}{dt}\right]^{escape}

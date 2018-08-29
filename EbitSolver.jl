@@ -100,28 +100,29 @@ end
     ion_r² = p.rₑ²_in_m .* (τ./p.qVₜ) # ion radius squared
     n = p.Ł .* N./ion_r² # ion density
 
-    arg = (τ ./ p.A) .+ (τ ./ p.A).'
+    arg = (τ ./ p.A) .+ (τ ./ p.A)'
 
-    Σ = (p.χ .* n.') .* ( arg .^ (-1.5)) # 1 / relaxation time
+    Σ = (p.χ .* n') .* ( arg .^ (-1.5)) # 1 / relaxation time
 
-
-    ν = sum(Σ,2) # collision frequency
+    fij = min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)  # ion-ion overlap
+    ν = sum(fij .* Σ,2) # collision frequency
 
     
     ω = p.qVₜ ./ τ # thermodynamic temperature scaled by trap depth
-    R_esc = 3/sqrt(3) .* exp.(-ω) ./ ω # rate of escape
+    R_esc = squeeze(3/sqrt(3) .* ν .* exp.(-ω) ./ ω, 2) # rate of escape
 
     fe = min.(p.qVₑ ./ τ, 1.0) # electron-ion overlap
-    fij = min.((τ.'./ τ) .* ((p.qVₑ).' ./ p.qVₑ), 1.0)  # ion-ion overlap
+
 
     dBeam = (fe .* p.ϕ) # Spitzer heating
 
     dEscape = - R_esc .* (τ .+ p.qVₜ) # heat loss due to escape
-    dExchange = squeeze(sum(fij .* Σ .* (τ.' .- τ), 2),2) # heat exchange
+    dExchange = squeeze(sum(fij .* Σ .* (τ' .- τ), 2),2) # heat exchange
 
     dN .= ( p.dN * N )  -  N .* R_esc #.- not_zero(τ, (p.CX.*τ), 0.0) ) )
 
-    dτ .= not_zero.(dN, (dN .* τ) ./ dN, 0.0) + (dBeam .+ dEscape .+ dExchange)
+    dτ .= #not_zero.(N, (dN ./ N) .* τ, 0.0) +
+        (dBeam .+ dEscape .+ dExchange)
     du
 end
 
