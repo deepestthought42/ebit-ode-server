@@ -47,6 +47,8 @@ struct EbitParameters
 
     no_dimensions::UInt32
 
+    min_N::Float64
+
     function EbitParameters(dep::EbitODEMessages.DiffEqParameters)
         dim = dep.no_dimensions
         qVₑ = dep.qVe
@@ -66,16 +68,16 @@ struct EbitParameters
 
         CX = zeros(dim, dim)
 
-        return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, CX, dep.no_dimensions)
+        return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, CX, dep.no_dimensions, 1e-2)
     end
 end
 
 
-@inline function not_zero(a, when_not_zero, when_zero)
-    if a == 0.0
-        when_zero
+@inline function ifLarger(x, than, if_larger, else_larger)
+    if x > than
+        if_larger
     else
-        when_not_zero
+        else_larger
     end
 end
 
@@ -88,42 +90,32 @@ end
 end
 
 
-@noinline function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, ::Any)
+function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, ::Any)
     N = view(u, 1:p.no_dimensions)
     τ = view(u, p.no_dimensions+1:p.no_dimensions*2)
-    # @info "τ" τ                 
 
     dN = view(du, 1:p.no_dimensions)
     dτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
 
 
-    ion_r² = p.rₑ²_in_m .* (τ./p.qVₜ) # ion radius squared
-    n = p.Ł .* N./ion_r² # ion density
+    # 1 / relaxation time
+    Σ = (p.χ .* (p.Ł .* N./(p.rₑ²_in_m .* (τ./p.qVₜ)))') .* 
+        ( ((τ ./ p.A) .+ (τ ./ p.A)') .^ (-1.5)) 
 
-    arg = (τ ./ p.A) .+ (τ ./ p.A)'
+    # rate of escape
+    R_esc = squeeze(3/sqrt(3) 
+                    .* sum((min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* 
+                           Σ
+                           ,2)
+                    .* exp.(- p.qVₜ ./ τ) ./ p.qVₜ ./ τ, 2) 
 
-    Σ = (p.χ .* n') .* ( arg .^ (-1.5)) # 1 / relaxation time
-
-    fij = min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)  # ion-ion overlap
-    ν = sum(fij .* Σ,2) # collision frequency
-
+    ldN .= ( p.dN * N )  -  N .* R_esc #.- not_zero(τ, (p.CX.*τ), 0.0) ) )
     
-    ω = p.qVₜ ./ τ # thermodynamic temperature scaled by trap depth
-    R_esc = squeeze(3/sqrt(3) .* ν .* exp.(-ω) ./ ω, 2) # rate of escape
+    dτ .= ( min.(p.qVₑ ./ τ, 1.0) .* p.ϕ ) .- 
+          ( R_esc .* (τ .+ p.qVₜ) ) .+ 
+          squeeze( sum((min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* Σ .* (τ' .- τ), 2) , 2)
 
-    fe = min.(p.qVₑ ./ τ, 1.0) # electron-ion overlap
-
-
-    dBeam = (fe .* p.ϕ) # Spitzer heating
-
-    dEscape = - R_esc .* (τ .+ p.qVₜ) # heat loss due to escape
-    dExchange = squeeze(sum(fij .* Σ .* (τ' .- τ), 2),2) # heat exchange
-
-    dN .= ( p.dN * N )  -  N .* R_esc #.- not_zero(τ, (p.CX.*τ), 0.0) ) )
-
-    dτ .= #not_zero.(N, (dN ./ N) .* τ, 0.0) +
-        (dBeam .+ dEscape .+ dExchange)
-    du
+    return du
 end
 
 
