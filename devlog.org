@@ -122,7 +122,7 @@ and connect to it
 
 (defun create-test-msg ()
   (let+ ((system (make-instance 'eir:ebit-system
-				:trap-depth-in-v 100d0
+				:trap-depth-in-v 25d0
 				:beam-radius-in-um 50d0
 				:initial-populations '((:a 16 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
 				:nuclides (list (nubase:get-entry-for 16 8))))
@@ -130,11 +130,11 @@ and connect to it
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 15d0)
+									  :start 0.0d0 :stop 300d0)
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-6 200 15d0))
+						:saveat (generate-decade-reporting 1d-6 200 300d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system))))
@@ -185,7 +185,7 @@ and connect to it
        (iter
 	 (for kt in ebitodemessages:k-t)
 	 (for v in ebitodemessages:n)
-	 ,#+n
+
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter

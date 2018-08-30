@@ -98,7 +98,7 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, ::Any
 
     # rate of escape
     R_esc = (3/sqrt(3) .* 
-             (( (min.(( τ./τ' ) .* ( p.qVₑ' ./ xp.qVₑ ), 1.0)) .* Σ) * p.I) .* 
+             (( (min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* Σ) * p.I) .* 
              exp.(.- p.qVₜ ./ τ) ./ p.qVₜ ./ τ) 
 
     dN .= ( p.dN * N )  -  N .* R_esc #.- not_zero(τ, (p.CX.*τ), 0.0) ) )
