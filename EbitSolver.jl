@@ -48,6 +48,7 @@ struct EbitParameters
     no_dimensions::UInt32
 
     min_N::Float64
+    I::Array{Float64,2}
 
     function EbitParameters(dep::EbitODEMessages.DiffEqParameters)
         dim = dep.no_dimensions
@@ -67,8 +68,9 @@ struct EbitParameters
                            end)
 
         CX = zeros(dim, dim)
+        I = ones(dim,1)
 
-        return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, CX, dep.no_dimensions, 1e-2)
+        return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, CX, dep.no_dimensions, 1e-2, I)
     end
 end
 
@@ -81,39 +83,29 @@ end
     end
 end
 
-@inline function not_zero_or_less(a, when_not_zero, when_zero)
-    if a <= 0.0
-        when_zero
-    else
-        when_not_zero
-    end
-end
-
-
 function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, ::Any)
-    N = view(u, 1:p.no_dimensions)
-    τ = view(u, p.no_dimensions+1:p.no_dimensions*2)
+    N = view(u, 1:p.no_dimensions, 1:1)
+    τ = view(u, p.no_dimensions+1:p.no_dimensions*2, 1:1)
 
-    dN = view(du, 1:p.no_dimensions)
-    dτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
+    dN = view(du, 1:p.no_dimensions, 1:1)
+    dτ = view(du, p.no_dimensions+1:p.no_dimensions*2, 1:1)
 
 
     # 1 / relaxation time
-    Σ = (p.χ .* (p.Ł .* N./(p.rₑ²_in_m .* (τ./p.qVₜ)))') .* 
-        ( ((τ ./ p.A) .+ (τ ./ p.A)') .^ (-1.5)) 
+    Σ = ( p.χ .* (p.Ł .* N./(p.rₑ²_in_m .* (τ./p.qVₜ)))' ) .* 
+        ( ((τ ./ p.A) .+ (τ ./ p.A)') .^ (-1.5) ) 
+
 
     # rate of escape
-    R_esc = squeeze(3/sqrt(3) 
-                    .* sum((min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* 
-                           Σ
-                           ,2)
-                    .* exp.(- p.qVₜ ./ τ) ./ p.qVₜ ./ τ, 2) 
+    R_esc = (3/sqrt(3) .* 
+             (( (min.(( τ./τ' ) .* ( p.qVₑ' ./ xp.qVₑ ), 1.0)) .* Σ) * p.I) .* 
+             exp.(.- p.qVₜ ./ τ) ./ p.qVₜ ./ τ) 
 
-    ldN .= ( p.dN * N )  -  N .* R_esc #.- not_zero(τ, (p.CX.*τ), 0.0) ) )
+    dN .= ( p.dN * N )  -  N .* R_esc #.- not_zero(τ, (p.CX.*τ), 0.0) ) )
     
     dτ .= ( min.(p.qVₑ ./ τ, 1.0) .* p.ϕ ) .- 
           ( R_esc .* (τ .+ p.qVₜ) ) .+ 
-          squeeze( sum((min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* Σ .* (τ' .- τ), 2) , 2)
+          (((min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* Σ .* (τ' .- τ)) * p.I)
 
     return du
 end

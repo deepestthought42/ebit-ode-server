@@ -130,11 +130,11 @@ and connect to it
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 0.1d0)
+									  :start 0.0d0 :stop 15d0)
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-6 200 0.1d0))
+						:saveat (generate-decade-reporting 1d-6 200 15d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system))))
@@ -195,6 +195,7 @@ and connect to it
 	      (format nil "with lines title '^{~D}~a'"
 		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
 		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt))))))
+
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
