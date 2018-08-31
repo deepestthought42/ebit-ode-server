@@ -48,7 +48,11 @@ struct EbitParameters
     no_dimensions::UInt32
 
     min_N::Float64
-    I::Array{Float64,2}
+    
+    R_esc::Array{Float64,1}
+    Σ::Array{Float64,2}
+    τ::Array{Float64,1}
+    arg::Array{Float64,2}
 
     function EbitParameters(dep::EbitODEMessages.DiffEqParameters)
         dim = dep.no_dimensions
@@ -68,45 +72,70 @@ struct EbitParameters
                            end)
 
         CX = zeros(dim, dim)
-        I = ones(dim,1)
+        R_esc = zeros(dim)
+        Σ = zeros(dim,dim)
+        τ = zeros(dim)
+        arg = zeros(dim,dim)
 
-        return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, CX, dep.no_dimensions, 1e-2, I)
+        return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, 
+                   CX, dep.no_dimensions, 0, R_esc, 
+                   Σ, τ, arg)
     end
 end
 
 
-@inline function ifLarger(x, than, if_larger, else_larger)
-    if x > than
-        if_larger
-    else
-        else_larger
+function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Float64)
+    N = view(u, 1:p.no_dimensions)
+    Nτ = view(u, p.no_dimensions+1:p.no_dimensions*2)
+
+    dN = view(du, 1:p.no_dimensions)
+    dNτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
+
+    for i in 1:p.no_dimensions
+        # order is important here
+        Nτ[i] = max(0, Nτ[i])
+        p.τ[i] = ( N[i] > p.min_N ) ? (2 * Nτ[i]) / (3 * N[i]) : 0.0
     end
-end
 
-function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, ::Any)
-    N = view(u, 1:p.no_dimensions, 1:1)
-    τ = view(u, p.no_dimensions+1:p.no_dimensions*2, 1:1)
-
-    dN = view(du, 1:p.no_dimensions, 1:1)
-    dτ = view(du, p.no_dimensions+1:p.no_dimensions*2, 1:1)
-
-
-    # 1 / relaxation time
-    Σ = ( p.χ .* (p.Ł .* N./(p.rₑ²_in_m .* (τ./p.qVₜ)))' ) .* 
-        ( ((τ ./ p.A) .+ (τ ./ p.A)') .^ (-1.5) ) 
-
-
-    # rate of escape
-    R_esc = (3/sqrt(3) .* 
-             (( (min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* Σ) * p.I) .* 
-             exp.(.- p.qVₜ ./ τ) ./ p.qVₜ ./ τ) 
-
-    dN .= ( p.dN * N )  -  N .* R_esc #.- not_zero(τ, (p.CX.*τ), 0.0) ) )
     
-    dτ .= ( min.(p.qVₑ ./ τ, 1.0) .* p.ϕ ) .- 
-          ( R_esc .* (τ .+ p.qVₜ) ) .+ 
-          (((min.(( τ./τ' ) .* ( p.qVₑ' ./ p.qVₑ ), 1.0)) .* Σ .* (τ' .- τ)) * p.I)
+    for i in 1:p.no_dimensions
+        R_esc_sum_j = 0
+        R_exchange_sum_j = 0
+        dN[i] = 0
+        dNτ[i] = 0
+        
+        for j in 1:p.no_dimensions
+            arg = p.τ[i]/p.A[i] + p.τ[j]/p.A[j]
 
+            if p.τ[j] > 0
+                fij = min((p.τ[i]*p.qVₑ[j])/(p.τ[j]*p.qVₑ[i]), 1.0)
+                Σ = p.χ[i,j] * ( N[j] * p.qVₑ[j] * p.Ł / ( p.rₑ²_in_m * p.τ[j] ) ) * ( arg^(-1.5) )
+
+                if arg > 0.0
+                    R_esc_sum_j += fij * Σ
+                end
+
+                if p.τ[i] > 0.0
+                    R_exchange_sum_j +=  fij * Σ * (p.τ[j] - p.τ[i])
+                end
+            end
+            
+            dN[i] += p.dN[i,j]*N[j]
+            dNτ[i] += p.dN[i,j]*Nτ[j]
+        end
+        
+        R_esc = 3/sqrt(3) * R_esc_sum_j * exp(-p.qVₜ[i] / p.τ[i]) / ( p.qVₜ[i] / p.τ[i] )
+
+        
+        dN[i] -= N[i] * R_esc
+        dNτ[i] +=  N[i] * ( min( p.qVₑ[i] / p.τ[i], 1.0) * p.ϕ[i] 
+                            - ( p.τ[i] + p.qVₜ[i] ) * R_esc
+                            + R_exchange_sum_j )
+                     
+    end
+
+    # map(n -> if (isinf(n) || isnan(n)) @info "NaN or Inf" N Nτ p.τ t R_esc du end, du)
+    
     return du
 end
 
@@ -119,17 +148,11 @@ function create_initial_values(initial_values, dimensions)
     map((iv) ->
         begin
         ret[iv.index] = iv.number_of_particles;
-        # initializing with T = 10 eV
-        # ret[dimensions+iv.index] = 10.0
+        ret[dimensions+iv.index] = iv.number_of_particles * iv.temperature_in_ev;
         end,
         initial_values)
    
-    # initializing with T = 10 eV
-    for i in dimensions+1:dimensions*2
-        ret[i] = 10.0
-    end
-
-     return ret
+    return ret
 
 end
 
@@ -154,7 +177,7 @@ end
 
         global last_p = p
         global last_initial_values = initial_values
-
+        
         return ODEProblem(du, initial_values, tspan, p)
     else
         throw(ErrorException("Unknown Problem type"))
@@ -201,7 +224,10 @@ end
 @noinline function solve_ode(problem)
     start_ = time()
     sol = solve(create_diffeq_prob(problem),
-                saveat=problem.solver_parameters.saveat)
+                saveat=problem.solver_parameters.saveat,
+                force_dtmin=true,
+                cb=GeneralDomain((resid, u, p, t) -> resid .= abs.(min.(0, u)))
+                )
     stop = time()
     return pack_ode_msg(pack_ode_result(sol, problem, start_, stop))
 end

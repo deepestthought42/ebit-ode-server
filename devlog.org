@@ -122,19 +122,19 @@ and connect to it
 
 (defun create-test-msg ()
   (let+ ((system (make-instance 'eir:ebit-system
-				:trap-depth-in-v 25d0
-				:beam-radius-in-um 50d0
-				:initial-populations '((:a 16 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
-				:nuclides (list (nubase:get-entry-for 16 8))))
+				:trap-depth-in-v 10d0
+				:beam-radius-in-um 100d0
+				:initial-populations '((:a 85 :z 37 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				:nuclides (list (nubase:get-entry-for 85 37))))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 300d0)
+									  :start 0.0d0 :stop 1d0)
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-6 200 300d0))
+						:saveat (generate-decade-reporting 1d-6 500 1d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system))))
@@ -181,30 +181,34 @@ and connect to it
       (cmd "reset")
       (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
       (cmd "set logscale x")
+      ;(cmd "set y2range [0:100]")
       (mgl-gnuplot:plot*
        (iter
 	 (for kt in ebitodemessages:k-t)
 	 (for v in ebitodemessages:n)
-
+	 ,#+nil
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
 		(for tt in ebitodemessages:times)
 		(for y in (ebitodemessages:values v))
 		(collect (list tt y)))
-	      (format nil "with lines title '^{~D}~a'"
+	      (format nil "with lines axes x1y1 title 'N ^{~D}~a^{~D}'"
 		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
-		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt))))))
+		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))
+		      (ebitodemessages:q (ebitodemessages:nuclide kt)))))
 
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
 		(for tt in ebitodemessages:times)
 		(for y in (ebitodemessages:values kt))
-		(collect (list tt y)))
-	      (format nil "with lines dt 4 title '^{~D}~a'"
+		(for n in (ebitodemessages:values v))
+		(if (> n 10) (collect (list tt (/ y 1)))))
+	      (format nil "with lines axes x1y2 dt 4 title 'kT ^{~D}~a{~D+}'"
 		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
-		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))))))) 
+		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))
+		      (ebitodemessages:q (ebitodemessages:nuclide kt))))))) 
       (cmd "unset output")))
   res-msg)
 #+END_SRC
