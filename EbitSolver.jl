@@ -78,7 +78,7 @@ struct EbitParameters
         arg = zeros(dim,dim)
 
         return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, 
-                   CX, dep.no_dimensions, 1e0, R_esc, 
+                   CX, dep.no_dimensions, 0.5, R_esc, 
                    Σ, τ, arg)
     end
 end
@@ -135,12 +135,14 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
 
                 dN[i] += p.dN[i,j]*N[j]
 
-                # dτ[i] += p.dN[i,j]*τ[j]
+                # if N[j] > 0
+                #     dτ[i] += (p.dN[i,j]*τ[j]*N[j])/N[j]
+                # end
 
 
             end
 
-            # dτ[i] += R_exchange_sum_j
+            dτ[i] += R_exchange_sum_j
 
             if N[i] > p.min_N 
                 R_esc = 3/sqrt(3) * R_esc_sum_j * exp(-p.qVₜ[i] / τ[i]) / ( p.qVₜ[i] / τ[i] )
@@ -240,10 +242,10 @@ end
 
 @noinline function solve_ode(problem)
     start_ = time()
-    sol = solve(create_diffeq_prob(problem), Tsit5(),
+    sol = solve(create_diffeq_prob(problem), 
                 # alghints=[:stiff],
                 saveat=problem.solver_parameters.saveat,
-                abstol=1e-3,
+                # abstol=1e-3,
                 cb=GeneralDomain((resid, u, p, t) -> resid .= abs.(min.(0, u)))
                 )
     stop = time()

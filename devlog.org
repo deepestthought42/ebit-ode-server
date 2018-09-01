@@ -117,24 +117,25 @@ and connect to it
 
 (make-diff-eq-params (make-instance 'eir:ebit-system
 				    :beam-radius-in-um 30d0
-				    :initial-populations '((:a 20 :z 8 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				    :initial-populations '((:a 20 :z 8 :q 1 :no 100000d0 :temp-in-ev 5d0))
 				    :nuclides (list (nubase:get-entry-for 20 8))))
 
 (defun create-test-msg ()
   (let+ ((system (make-instance 'eir:ebit-system
+				:beam-current-in-a 1d0
 				:trap-depth-in-v 100d0
 				:beam-radius-in-um 30d0
-				:initial-populations '((:a 85 :z 37 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				:initial-populations '((:a 85 :z 37 :q 1 :no 100000d0 :temp-in-ev 5d0))
 				:nuclides (list (nubase:get-entry-for 85 37))))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 15d0)
+									  :start 0.0d0 :stop 5d0)
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-4 500 15d0))
+						:saveat (generate-decade-reporting 1d-8 500 5d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system))))
@@ -179,10 +180,11 @@ and connect to it
 	     (mgl-gnuplot:command (apply #'format nil fmt-str args))))
     (mgl-gnuplot:with-session ()
       (cmd "reset")
-      (cmd "set terminal wxt enhanced font 'Georgia,8' dashed")
+      (cmd "set terminal wxt enhanced size 600,800 font 'Georgia,8' dashed")
+      (cmd "set multiplot layout 2,1")
       (cmd "set logscale x")
-      (cmd "set logscale y2")
-      ;(cmd "set y2range [0:100]")
+      ;(cmd "set logscale y")
+      ;(cmd "set yrange [0:100]")
       (mgl-gnuplot:plot*
        (iter
 	 (for kt in ebitodemessages:k-t)
@@ -194,10 +196,15 @@ and connect to it
 		(for y in (ebitodemessages:values v))
 		(for n in (ebitodemessages:values v))
 		(if (> n 1) (collect (list tt y))))
-	      (format nil "with lines axes x1y1 title 'N ^{~D}~a^{~D}'"
+	      (format nil "with lines title 'N ^{~D}~a^{~D}'"
 		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
 		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))
-		      (ebitodemessages:q (ebitodemessages:nuclide kt)))))
+		      (ebitodemessages:q (ebitodemessages:nuclide kt)))))))
+
+      (mgl-gnuplot:plot*
+       (iter
+	 (for kt in ebitodemessages:k-t)
+	 (for v in ebitodemessages:n)
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
@@ -205,13 +212,14 @@ and connect to it
 		(for y in (ebitodemessages:values kt))
 		(for n in (ebitodemessages:values v))
 		(if (and (not (sb-ext:float-nan-p n))
-			 (> n 5))
+			 (> n 1))
 		    (collect (list tt (/ y 1)))))
-	      (format nil "with lines axes x1y2 dt 4 title 'kT ^{~D}~a{~D+}'"
+	      (format nil "with lines dt 4 title 'kT ^{~D}~a{~D+}'"
 		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
 		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))
 		      (ebitodemessages:q (ebitodemessages:nuclide kt))))))) 
-      (cmd "unset output")))
+      (cmd "unset output")
+      (cmd "unset multiplot")))
   res-msg)
 #+END_SRC
 ** [2018-08-17 Fri 09:30] interaction between lisp and julia is working, 
