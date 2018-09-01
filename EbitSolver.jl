@@ -104,14 +104,14 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
             τ[i] = max(0, τ[i])
         end
         
-        for i in 1:p.no_dimensions
+        @simd for i in 1:p.no_dimensions
             R_esc_sum_j = 0.0
             R_exchange_sum_j = 0.0
             dN[i] = 0.0
             dτ[i] = 0.0
 
 
-            for j in 1:p.no_dimensions
+            @simd for j in 1:p.no_dimensions
                 # calculate everything that is based on interaction of two states
                 if (N[i] > p.min_N && N[j] > p.min_N && τ[j] > 0.0 && τ[i] > 0.0) 
                     fᵢⱼ = min((τ[i]*p.qVₑ[j])/(τ[j]*p.qVₑ[i]), 1.0)
@@ -119,26 +119,10 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
                     arg = (τ[i]/p.A[i] + τ[j]/p.A[j])
                     Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
                     R_esc_sum_j += fᵢⱼ * Σ
-                    
                     R_exchange_sum_j +=  fᵢⱼ * Σ * (τ[j] - τ[i])
-                    
-                    # iserr(τ[i], "ti")
-                    # iserr(τ[j], "tj")
-                    # iserr(nⱼ, "nⱼ")
-                    # iserr(arg, "arg")
-                    # iserr(fᵢⱼ,"fij")
-                    # iserr(Σ, "sigma")
-
-
-                    
                 end
 
                 dN[i] += p.dN[i,j]*N[j]
-
-                # if N[j] > 0
-                #     dτ[i] += (p.dN[i,j]*τ[j]*N[j])/N[j]
-                # end
-
 
             end
 
