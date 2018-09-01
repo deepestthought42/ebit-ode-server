@@ -78,65 +78,80 @@ struct EbitParameters
         arg = zeros(dim,dim)
 
         return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, 
-                   CX, dep.no_dimensions, 0, R_esc, 
+                   CX, dep.no_dimensions, 1e0, R_esc, 
                    Σ, τ, arg)
     end
 end
 
+function iserr(x::Float64, name::String)
+    if isinf(x) || isnan(x) || iszero(x) || isless(x, 0)
+        error("$name = $x")
+    end
+    x
+end
 
 function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Float64)
-    N = view(u, 1:p.no_dimensions)
-    Nτ = view(u, p.no_dimensions+1:p.no_dimensions*2)
+    @inbounds begin
 
-    dN = view(du, 1:p.no_dimensions)
-    dNτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
 
-    for i in 1:p.no_dimensions
-        # order is important here
-        Nτ[i] = max(0, Nτ[i])
-        p.τ[i] = ( N[i] > p.min_N ) ? (2 * Nτ[i]) / (3 * N[i]) : 0.0
-    end
+        N = view(u, 1:p.no_dimensions)
+        τ = view(u, p.no_dimensions+1:p.no_dimensions*2)
 
-    
-    for i in 1:p.no_dimensions
-        R_esc_sum_j = 0
-        R_exchange_sum_j = 0
-        dN[i] = 0
-        dNτ[i] = 0
-        
-        for j in 1:p.no_dimensions
-            arg = p.τ[i]/p.A[i] + p.τ[j]/p.A[j]
+        dN = view(du, 1:p.no_dimensions)
+        dτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
 
-            if p.τ[j] > 0
-                fij = min((p.τ[i]*p.qVₑ[j])/(p.τ[j]*p.qVₑ[i]), 1.0)
-                Σ = p.χ[i,j] * ( N[j] * p.qVₑ[j] * p.Ł / ( p.rₑ²_in_m * p.τ[j] ) ) * ( arg^(-1.5) )
-
-                if arg > 0.0
-                    R_esc_sum_j += fij * Σ
-                end
-
-                if p.τ[i] > 0.0
-                    R_exchange_sum_j +=  fij * Σ * (p.τ[j] - p.τ[i])
-                end
-            end
-            
-            dN[i] += p.dN[i,j]*N[j]
-            dNτ[i] += p.dN[i,j]*Nτ[j]
+        for i in 1:p.no_dimensions
+            τ[i] = max(0, τ[i])
         end
         
-        R_esc = 3/sqrt(3) * R_esc_sum_j * exp(-p.qVₜ[i] / p.τ[i]) / ( p.qVₜ[i] / p.τ[i] )
+        for i in 1:p.no_dimensions
+            R_esc_sum_j = 0.0
+            R_exchange_sum_j = 0.0
+            dN[i] = 0.0
+            dτ[i] = 0.0
 
-        
-        dN[i] -= N[i] * R_esc
-        dNτ[i] +=  N[i] * ( min( p.qVₑ[i] / p.τ[i], 1.0) * p.ϕ[i] 
-                            - ( p.τ[i] + p.qVₜ[i] ) * R_esc
-                            + R_exchange_sum_j )
-                     
+
+            for j in 1:p.no_dimensions
+                # calculate everything that is based on interaction of two states
+                if (N[i] > p.min_N && N[j] > p.min_N && τ[j] > 0.0 && τ[i] > 0.0) 
+                    fᵢⱼ = min((τ[i]*p.qVₑ[j])/(τ[j]*p.qVₑ[i]), 1.0)
+                    nⱼ = N[j] * p.qVₑ[j] * p.Ł / ( p.rₑ²_in_m * τ[j] )
+                    arg = (τ[i]/p.A[i] + τ[j]/p.A[j])
+                    Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
+                    R_esc_sum_j += fᵢⱼ * Σ
+                    
+                    R_exchange_sum_j +=  fᵢⱼ * Σ * (τ[j] - τ[i])
+                    
+                    # iserr(τ[i], "ti")
+                    # iserr(τ[j], "tj")
+                    # iserr(nⱼ, "nⱼ")
+                    # iserr(arg, "arg")
+                    # iserr(fᵢⱼ,"fij")
+                    # iserr(Σ, "sigma")
+
+
+                    
+                end
+
+                dN[i] += p.dN[i,j]*N[j]
+
+                # dτ[i] += p.dN[i,j]*τ[j]
+
+
+            end
+
+            # dτ[i] += R_exchange_sum_j
+
+            if N[i] > p.min_N 
+                R_esc = 3/sqrt(3) * R_esc_sum_j * exp(-p.qVₜ[i] / τ[i]) / ( p.qVₜ[i] / τ[i] )
+                dτ[i] += ( ( min( p.qVₑ[i] / τ[i], 1.0) * p.ϕ[i] ) - ( τ[i] + p.qVₜ[i] ) * R_esc )
+                dN[i] -= N[i]*R_esc
+            end
+            
+        end
+
+        return du
     end
-
-    # map(n -> if (isinf(n) || isnan(n)) @info "NaN or Inf" N Nτ p.τ t R_esc du end, du)
-    
-    return du
 end
 
 
@@ -147,13 +162,16 @@ function create_initial_values(initial_values, dimensions)
     
     map((iv) ->
         begin
-        ret[iv.index] = iv.number_of_particles;
-        ret[dimensions+iv.index] = iv.number_of_particles * iv.temperature_in_ev;
+            ret[iv.index] = iv.number_of_particles;
+            ret[dimensions + iv.index] = iv.temperature_in_ev;
         end,
         initial_values)
    
-    return ret
+    for i in dimensions+1:2*dimensions
+        ret[i] = 10.0
+    end
 
+    return ret
 end
 
 
@@ -167,7 +185,6 @@ end
         tspan = (problem.problem_parameters.time_span.start,
                  problem.problem_parameters.time_span.stop)
 
-        
         initial_values = create_initial_values(
             problem.diff_eq_parameters.initial_values,
             problem.diff_eq_parameters.no_dimensions
@@ -223,9 +240,10 @@ end
 
 @noinline function solve_ode(problem)
     start_ = time()
-    sol = solve(create_diffeq_prob(problem),
+    sol = solve(create_diffeq_prob(problem), Tsit5(),
+                # alghints=[:stiff],
                 saveat=problem.solver_parameters.saveat,
-                force_dtmin=true,
+                abstol=1e-3,
                 cb=GeneralDomain((resid, u, p, t) -> resid .= abs.(min.(0, u)))
                 )
     stop = time()
