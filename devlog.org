@@ -100,13 +100,15 @@ and connect to it
 (defun make-diff-eq-params (system)
   (let+ (((&slots eir:initial-populations eir:initial-temperature-in-ev
 		  eir:trap-length-in-m eir::nuclide-indices eir:v{r_e}
-		  eir:pressure-in-mbar
+		  eir:pressure-in-mbar eir:source-terms
 		  eir:trap-depth-in-V eir:beam-radius-in-um)
 	  system)
 	 ((&values rates dimension) (eir:get-decay-rates system)))
     (make-instance 'ebitodemessages:diff-eq-parameters
 		   :initial-values eir:initial-populations
 		   :no-dimensions dimension
+		   :initial-temperature 10d0
+		   :source-terms (eir:get-source-rates eir:nuclide-indices eir:source-terms)
 		   :q-ve (eir:get-qve eir:nuclide-indices eir:v{r_e})
 		   :q-vt (eir:get-qvt eir:nuclide-indices eir:trap-depth-in-V)
 		   :mass-number (eir:get-mass-numbers eir:nuclide-indices)
@@ -130,25 +132,26 @@ and connect to it
 
 (defun create-test-msg ()
   (let+ ((system (make-instance 'eir:ebit-system
-				:beam-current-in-a 0.1d0
+				:beam-current-in-a 0.5d0
+				:electron-beam-energy-in-ev 15000d0
 				:trap-depth-in-v 20d0
-				:beam-radius-in-um 280d0
+				:beam-radius-in-um 50d0
 				:pressure-in-mbar 1d-10
-				:initial-populations '(;;(:a 30 :z 12 :q 1 :no 10000d0 :temp-in-ev 5d0)
+				:initial-populations '((:a 20 :z 10 :q 1 :no 20000d0 :temp-in-ev 5d0)
 						       ;;(:a 133 :z 55 :q 1 :no 100000d0 :temp-in-ev 5d0)
-						       (:a 20 :z 10 :q 1 :no 10000d0 :temp-in-ev 5d0))
-				:nuclides (list (nubase:get-entry-for 20 10)
-						;;(nubase:get-entry-for 133 55)
-						)))
+						       (:a 85 :z 37 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				:nuclides (list (nubase:get-entry-for 85 37)
+						(nubase:get-entry-for 20 10))
+				:source-terms '((:a 20 :z 10 :q 1 :rate 16000d0))))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
 						:time-span (make-instance 'ebitodemessages:time-span
-									  :start 0.0d0 :stop 5d0)
+									  :start 0.0d0 :stop 50d0)
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-6 1000 5d0))
+						:saveat (generate-decade-reporting 1d-6 1000 50d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system))))

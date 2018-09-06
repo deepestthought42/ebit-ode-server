@@ -94,10 +94,12 @@ mutable struct DiffEqParameters <: ProtoType
     rate_of_change_divided_by_N::Base.Vector{MatrixValue}
     no_dimensions::UInt32
     initial_values::Base.Vector{InitialValue}
+    initial_temperature::Float64
     minimum_N::Float64
+    source_terms::Base.Vector{Float64}
     DiffEqParameters(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct DiffEqParameters
-const __req_DiffEqParameters = Symbol[:no_dimensions,:minimum_N]
+const __req_DiffEqParameters = Symbol[:no_dimensions,:initial_temperature,:minimum_N]
 meta(t::Type{DiffEqParameters}) = meta(t, __req_DiffEqParameters, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct ProblemParameters <: ProtoType

@@ -39,6 +39,7 @@ struct EbitParameters
     A::Array{Float64,1}
     ϕ::Array{Float64,1}
     qVe_over_Vol_x_kT::Array{Float64,1}
+    source::Array{Float64,1}
 
     χ::Array{Float64,2}
     dN::Array{Float64,2}
@@ -56,10 +57,10 @@ struct EbitParameters
         qVe_over_Vol_x_kT = dep.qVe_over_Vol_x_kT
         χ = create_matrix(dim, dep.inverted_collision_constant)
         dN = create_matrix(dim, dep.rate_of_change_divided_by_N)
-
         CX = create_matrix(dim, dep.dCharge_ex_divided_by_N_times_tau)
 
-        return new(qVₑ, qVₜ, A, ϕ, qVe_over_Vol_x_kT, χ, dN, 
+        return new(qVₑ, qVₜ, A, ϕ, qVe_over_Vol_x_kT,
+                   dep.source_terms, χ, dN, 
                    CX, dep.no_dimensions, dep.minimum_N)
     end
 end
@@ -86,7 +87,7 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
         @simd for i in 1:p.no_dimensions
             R_esc_sum_j = 0.0
             R_exchange_sum_j = 0.0
-            dN[i] = 0.0
+            dN[i] = p.source[i]
             dτ[i] = 0.0
 
 
@@ -108,7 +109,6 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
             end
 
             dτ[i] += R_exchange_sum_j
-
             if N[i] > p.min_N 
                 R_esc = 3/sqrt(3) * R_esc_sum_j * ( τ[i] / p.qVₜ[i] ) * exp( -p.qVₜ[i] / τ[i] ) 
                 dτ[i] += ( min( p.qVₑ[i] / τ[i], 1.0) * p.ϕ[i] ) - ( τ[i] + p.qVₜ[i] ) * R_esc
