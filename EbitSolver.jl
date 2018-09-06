@@ -124,18 +124,13 @@ end
 
 
 
-function create_initial_values(initial_values, dimensions)
+function create_initial_values(initial_values, dimensions, initial_temperature)
     ret = zeros(2*dimensions)
     
-    map((iv) ->
-        begin
-            ret[iv.index] = iv.number_of_particles;
-            ret[dimensions + iv.index] = iv.temperature_in_ev;
-        end,
-        initial_values)
-   
+    map((iv) -> ret[iv.index] = iv.number_of_particles, initial_values)
+
     for i in dimensions+1:2*dimensions
-        ret[i] = 10.0
+        ret[i] = initial_temperature
     end
 
     return ret
@@ -154,7 +149,8 @@ end
 
         initial_values = create_initial_values(
             problem.diff_eq_parameters.initial_values,
-            problem.diff_eq_parameters.no_dimensions
+            problem.diff_eq_parameters.no_dimensions,
+            problem.diff_eq_parameters.initial_temperature
         )
 
         @info "Created initial values from list" initial_values

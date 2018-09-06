@@ -107,7 +107,7 @@ and connect to it
     (make-instance 'ebitodemessages:diff-eq-parameters
 		   :initial-values eir:initial-populations
 		   :no-dimensions dimension
-		   :initial-temperature 10d0
+		   :initial-temperature 1d0
 		   :source-terms (eir:get-source-rates eir:nuclide-indices eir:source-terms)
 		   :q-ve (eir:get-qve eir:nuclide-indices eir:v{r_e})
 		   :q-vt (eir:get-qvt eir:nuclide-indices eir:trap-depth-in-V)
@@ -137,12 +137,12 @@ and connect to it
 				:trap-depth-in-v 20d0
 				:beam-radius-in-um 50d0
 				:pressure-in-mbar 1d-10
-				:initial-populations '((:a 20 :z 10 :q 1 :no 20000d0 :temp-in-ev 5d0)
+				:initial-populations '((:a 20 :z 10 :q 1 :no 20d0 :temp-in-ev 5d0)
 						       ;;(:a 133 :z 55 :q 1 :no 100000d0 :temp-in-ev 5d0)
 						       (:a 85 :z 37 :q 1 :no 10000d0 :temp-in-ev 5d0))
 				:nuclides (list (nubase:get-entry-for 85 37)
 						(nubase:get-entry-for 20 10))
-				:source-terms '((:a 20 :z 10 :q 1 :rate 16000d0))))
+				:source-terms '((:a 20 :z 10 :q 1 :rate 17000d0))))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
