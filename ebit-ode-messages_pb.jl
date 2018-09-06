@@ -88,18 +88,17 @@ mutable struct DiffEqParameters <: ProtoType
     qVt::Base.Vector{Float64}
     mass_number::Base.Vector{Float64}
     spitzer_divided_by_overlap::Base.Vector{Float64}
-    electron_radius_in_m_squared::Float64
-    one_over_pi_times_L::Float64
+    qVe_over_Vol_x_kT::Base.Vector{Float64}
     inverted_collision_constant::Base.Vector{MatrixValue}
     dCharge_ex_divided_by_N_times_tau::Base.Vector{MatrixValue}
     rate_of_change_divided_by_N::Base.Vector{MatrixValue}
     no_dimensions::UInt32
     initial_values::Base.Vector{InitialValue}
+    minimum_N::Float64
     DiffEqParameters(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct DiffEqParameters
-const __req_DiffEqParameters = Symbol[:electron_radius_in_m_squared,:one_over_pi_times_L,:no_dimensions]
-const __fnum_DiffEqParameters = Int[1,2,3,4,5,6,7,9,10,11,13]
-meta(t::Type{DiffEqParameters}) = meta(t, __req_DiffEqParameters, __fnum_DiffEqParameters, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+const __req_DiffEqParameters = Symbol[:no_dimensions,:minimum_N]
+meta(t::Type{DiffEqParameters}) = meta(t, __req_DiffEqParameters, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
 mutable struct ProblemParameters <: ProtoType
     problem_type::Int32

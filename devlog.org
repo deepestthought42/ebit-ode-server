@@ -100,6 +100,7 @@ and connect to it
 (defun make-diff-eq-params (system)
   (let+ (((&slots eir:initial-populations eir:initial-temperature-in-ev
 		  eir:trap-length-in-m eir::nuclide-indices eir:v{r_e}
+		  eir:pressure-in-mbar
 		  eir:trap-depth-in-V eir:beam-radius-in-um)
 	  system)
 	 ((&values rates dimension) (eir:get-decay-rates system)))
@@ -109,11 +110,18 @@ and connect to it
 		   :q-ve (eir:get-qve eir:nuclide-indices eir:v{r_e})
 		   :q-vt (eir:get-qvt eir:nuclide-indices eir:trap-depth-in-V)
 		   :mass-number (eir:get-mass-numbers eir:nuclide-indices)
+		   :d-charge-ex-divided-by-n-times-tau
+		   (eir:get-cx-rate-over-t-and-n eir:nuclide-indices
+		   				 (ionization-energies:get-ie-for-q-in-natural 7 1)
+		   				 eir:pressure-in-mbar)
 		   :rate-of-change-divided-by-n rates
 		   :spitzer-divided-by-overlap (eir:spitzer-heating-constant system eir:nuclide-indices)
-		   :one-over-pi-times-l (/ 1d0 (* pi eir:trap-length-in-m))
-		   :inverted-collision-constant (eir:collision-frequency eir:nuclide-indices)
-		   :electron-radius-in-m-squared (* eir:beam-radius-in-um eir:beam-radius-in-um 1d-12))))
+		   :q-ve-over-vol-x-k-t (eir:get-q-ve-over-vol-x-kt eir:nuclide-indices
+								    eir:v{r_e}
+								    (* 1d-6 eir:beam-radius-in-um)
+								    eir:trap-length-in-m)
+		   :minimum-n 1d-1
+		   :inverted-collision-constant (eir:collision-frequency-t-independent-ij eir:nuclide-indices))))
 
 (make-diff-eq-params (make-instance 'eir:ebit-system
 				    :beam-radius-in-um 30d0
@@ -122,13 +130,16 @@ and connect to it
 
 (defun create-test-msg ()
   (let+ ((system (make-instance 'eir:ebit-system
-				:beam-current-in-a 1d0
-				:trap-depth-in-v 25d0
-				:beam-radius-in-um 50d0
-				:initial-populations '((:a 85 :z 37 :q 1 :no 10000d0 :temp-in-ev 5d0)
-						       (:a 20 :z 10 :q 1 :no 300000d0 :temp-in-ev 5d0))
-				:nuclides (list (nubase:get-entry-for 85 37)
-						(nubase:get-entry-for 20 10))))
+				:beam-current-in-a 0.1d0
+				:trap-depth-in-v 20d0
+				:beam-radius-in-um 280d0
+				:pressure-in-mbar 1d-10
+				:initial-populations '(;;(:a 30 :z 12 :q 1 :no 10000d0 :temp-in-ev 5d0)
+						       ;;(:a 133 :z 55 :q 1 :no 100000d0 :temp-in-ev 5d0)
+						       (:a 20 :z 10 :q 1 :no 10000d0 :temp-in-ev 5d0))
+				:nuclides (list (nubase:get-entry-for 20 10)
+						;;(nubase:get-entry-for 133 55)
+						)))
 	 (problem (make-instance 'ebitodemessages:solve-ode-problem
 				 :problem-parameters
 				 (make-instance 'ebitodemessages:problem-parameters
@@ -137,7 +148,7 @@ and connect to it
 						:problem-type :ode-problem)
 				 :solver-parameters
 				 (make-instance 'ebitodemessages:solver-parameters
-						:saveat (generate-decade-reporting 1d-6 500 5d0))
+						:saveat (generate-decade-reporting 1d-6 1000 5d0))
 				 :nuclides (eir:nuclide-indices system)
 				 :diff-eq-parameters
 				 (make-diff-eq-params system))))
@@ -185,28 +196,40 @@ and connect to it
       (cmd "set terminal wxt enhanced size 600,800 font 'Georgia,8' dashed")
       (cmd "set multiplot layout 2,1")
       (cmd "set logscale x")
-      (cmd "set logscale y")
+      ;(cmd "set logscale y")
       
       (mgl-gnuplot:plot*
        (iter
 	 (for kt in ebitodemessages:k-t)
 	 (for v in ebitodemessages:n)
+	 (for a = (ebitodemessages:a (ebitodemessages:nuclide v)))
+	 (for i initially 1 then (1+ i))
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
 		(for tt in ebitodemessages:times)
 		(for y in (ebitodemessages:values v))
 		(for n in (ebitodemessages:values v))
-		(if (> n 1) (collect (list tt y))))
-	      (format nil "with lines title 'N ^{~D}~a^{~D}'"
-		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
-		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))
-		      (ebitodemessages:q (ebitodemessages:nuclide kt)))))))
+		(if (> n 1)
+		    (collect (list tt (/ y (if (= a 133) 10 1))))))
+	      (format nil "with lines dt ~D lw ~D lc ~D title '~a'"
+		      (+ (mod i 3))
+		      (if (= (mod i 3) 1) 2 1)
+		      (ebitodemessages:z (ebitodemessages:nuclide kt)) 
+		      (if (= (mod i 3) 1)
+			  (format nil "N: ^{~D}~a^{~D+}"
+				  (ebitodemessages:a (ebitodemessages:nuclide kt)) 
+				  (ionization-energies:get-name-for-z
+				   (ebitodemessages:z (ebitodemessages:nuclide kt)))
+				  (ebitodemessages:q (ebitodemessages:nuclide kt)))
+			  ""))))))
       ;(cmd "set yrange [0:1000]")
+
       (mgl-gnuplot:plot*
        (iter
 	 (for kt in ebitodemessages:k-t)
 	 (for v in ebitodemessages:n)
+	 (for i initially 1 then (1+ i))
 	 (collect
 	     (mgl-gnuplot:data*
 	      (iter
@@ -216,10 +239,16 @@ and connect to it
 		(if (and (not (sb-ext:float-nan-p n))
 			 (> n 1))
 		    (collect (list tt (/ y 1)))))
-	      (format nil "with lines dt 4 title 'kT ^{~D}~a{~D+}'"
-		      (ebitodemessages:a (ebitodemessages:nuclide kt)) 
-		      (ionization-energies:get-name-for-z (ebitodemessages:z (ebitodemessages:nuclide kt)))
-		      (ebitodemessages:q (ebitodemessages:nuclide kt))))))) 
+	      (format nil "with lines dt ~D  lc ~D title '~a'"
+		      (+ (mod i 3))
+		      (ebitodemessages:z (ebitodemessages:nuclide kt)) 
+		      (if (= (mod i 3) 1)
+			  (format nil "kT: ^{~D}~a^{~D+}"
+				  (ebitodemessages:a (ebitodemessages:nuclide kt)) 
+				  (ionization-energies:get-name-for-z
+				   (ebitodemessages:z (ebitodemessages:nuclide kt)))
+				  (ebitodemessages:q (ebitodemessages:nuclide kt)))
+			  "")))))) 
       (cmd "unset output")
       (cmd "unset multiplot")))
   res-msg)
@@ -293,7 +322,7 @@ and the characteristic radius $r_i$ given as:
   \end{cases}
 \end{equation}
 
-ignoring the difference and assuming the 1/x dpendence, we define the
+ignoring the difference and assuming the 1/x dependence, we define the
 overlap as:
 
 #+NAME: eq:overlap-used
@@ -356,7 +385,7 @@ http://docs.juliadiffeq.org/stable/features/diffeq_operator.html
 ** ebit-ode-msg protobuf code
 #+BEGIN_SRC shell :results none
 export PATH="$PATH:/home/renee/.julia/packages/ProtoBuf/w5yif/plugin/"
-export JULIA=~/src/julia-0.7.0/bin/julia 
+export JULIA=~/src/julia-0.6.4/bin/julia 
 protoc -I /home/renee/phd/src/ebit-evolution.project/ebit-ode-msg/ \
         --julia_out=/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/\
         /home/renee/phd/src/ebit-evolution.project/ebit-ode-msg/ebit-ode-messages.proto

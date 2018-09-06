@@ -25,7 +25,7 @@ _ret_codes_ = Dict(
 )
 
 
-function create_matrix(dim, sparse_values, f = (v, matrix) -> matrix[v.row,v.column] = v.value)
+function create_matrix(dim, sparse_values, f = (v, matrix) -> matrix[v.row,v.column] += v.value)
     matrix = zeros(dim, dim)
     map(v -> f(v,matrix), sparse_values)
     return matrix
@@ -38,48 +38,29 @@ struct EbitParameters
     qVₜ::Array{Float64,1}
     A::Array{Float64,1}
     ϕ::Array{Float64,1}
-    rₑ²_in_m::Float64
-    Ł::Float64
+    qVe_over_Vol_x_kT::Array{Float64,1}
 
     χ::Array{Float64,2}
     dN::Array{Float64,2}
     CX::Array{Float64,2}
 
     no_dimensions::UInt32
-
     min_N::Float64
     
-    R_esc::Array{Float64,1}
-    Σ::Array{Float64,2}
-    τ::Array{Float64,1}
-    arg::Array{Float64,2}
-
     function EbitParameters(dep::EbitODEMessages.DiffEqParameters)
         dim = dep.no_dimensions
         qVₑ = dep.qVe
         qVₜ = dep.qVt
         A = dep.mass_number
         ϕ = dep.spitzer_divided_by_overlap
-        rₑ²_in_m = dep.electron_radius_in_m_squared
-        Ł = dep.one_over_pi_times_L
-
+        qVe_over_Vol_x_kT = dep.qVe_over_Vol_x_kT
         χ = create_matrix(dim, dep.inverted_collision_constant)
-        dN = create_matrix(dim, dep.rate_of_change_divided_by_N,
-                           (v, matrix) ->
-                           begin
-                             matrix[v.row,v.column] += v.value
-                             matrix[v.column,v.column] -= v.value
-                           end)
+        dN = create_matrix(dim, dep.rate_of_change_divided_by_N)
 
-        CX = zeros(dim, dim)
-        R_esc = zeros(dim)
-        Σ = zeros(dim,dim)
-        τ = zeros(dim)
-        arg = zeros(dim,dim)
+        CX = create_matrix(dim, dep.dCharge_ex_divided_by_N_times_tau)
 
-        return new(qVₑ, qVₜ, A, ϕ, rₑ²_in_m, Ł, χ, dN, 
-                   CX, dep.no_dimensions, 0.5, R_esc, 
-                   Σ, τ, arg)
+        return new(qVₑ, qVₜ, A, ϕ, qVe_over_Vol_x_kT, χ, dN, 
+                   CX, dep.no_dimensions, dep.minimum_N)
     end
 end
 
@@ -92,8 +73,6 @@ end
 
 function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Float64)
     @inbounds begin
-
-
         N = view(u, 1:p.no_dimensions)
         τ = view(u, p.no_dimensions+1:p.no_dimensions*2)
 
@@ -115,11 +94,13 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
                 # calculate everything that is based on interaction of two states
                 if (N[i] > p.min_N && N[j] > p.min_N && τ[j] > 0.0 && τ[i] > 0.0) 
                     fᵢⱼ = min((τ[i]*p.qVₑ[j])/(τ[j]*p.qVₑ[i]), 1.0)
-                    nⱼ = N[j] * p.qVₑ[j] * p.Ł / ( p.rₑ²_in_m * τ[j] )
+                    nⱼ = N[j] * p.qVe_over_Vol_x_kT[j] / τ[j]
                     arg = (τ[i]/p.A[i] + τ[j]/p.A[j])
                     Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
                     R_esc_sum_j += fᵢⱼ * Σ
                     R_exchange_sum_j +=  fᵢⱼ * Σ * (τ[j] - τ[i])
+
+                    dN[i] += p.CX[i,j]*N[j]*sqrt(τ[j])
                 end
 
                 dN[i] += p.dN[i,j]*N[j]
@@ -129,9 +110,9 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
             dτ[i] += R_exchange_sum_j
 
             if N[i] > p.min_N 
-                R_esc = 3/sqrt(3) * R_esc_sum_j * exp(-p.qVₜ[i] / τ[i]) / ( p.qVₜ[i] / τ[i] )
-                dτ[i] += ( ( min( p.qVₑ[i] / τ[i], 1.0) * p.ϕ[i] ) - ( τ[i] + p.qVₜ[i] ) * R_esc )
-                dN[i] -= N[i]*R_esc
+                R_esc = 3/sqrt(3) * R_esc_sum_j * ( τ[i] / p.qVₜ[i] ) * exp( -p.qVₜ[i] / τ[i] ) 
+                dτ[i] += ( min( p.qVₑ[i] / τ[i], 1.0) * p.ϕ[i] ) - ( τ[i] + p.qVₜ[i] ) * R_esc
+                dN[i] -= N[i] * R_esc
             end
             
         end
