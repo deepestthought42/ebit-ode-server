@@ -261,6 +261,32 @@ NA: complete calculations
 - first, let's make the rate protobuf a bit more general by introducing a tag indicating
   the type of value represented by the dimension (number, temperature in our case)
 - to avoid complications with q=0, remove neutral atoms from the calculations
+** [2018-09-06 Thu 12:44] starting GUI
+- lets start by including the old gui code
+  #+BEGIN_SRC lisp
+  (with-project-dir:with-project-dir ("/home/renee/phd/src/ebit-evolution.project/")
+    (ql:quickload :rkcustomplot))
+#+END_SRC  
+- ok, weird error message for qt-libs, probably have to update qt-libs
+- nothing makes sense here, maybe we just use qwt ... doesn't look as nice but whatever
+- lets first try qtools in a freshing lisp image
+  #+BEGIN_SRC lisp
+  (ql:quickload :with-project-dir)
+  (ql:quickload :fare-quasiquote)
+  (ql:quickload :puri-ppcre)
+#+END_SRC
+
+  #+RESULTS:
+  | :PURI-PPCRE |
+- giving it a last try ... 
+  #+BEGIN_SRC lisp
+  (with-project-dir:with-project-dir ("/home/renee/phd/src/ebit-evolution.project/")
+    (ql:quickload :kairos))
+  #+END_SRC
+
+  #+RESULTS:
+  | :KAIROS |
+
 * ideas / scratch
 * differential equations
 
