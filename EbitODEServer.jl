@@ -8,7 +8,7 @@ using MicroLogging
 using ProtoBuf
 
 function create_proto_msg(buffer)
-    @info "Creating EbitODEMessages.Message() from buffer"
+    @debug "Creating EbitODEMessages.Message() from buffer"
     return readproto(PipeBuffer(buffer), EbitODEMessages.Message())
 end
 
@@ -20,10 +20,10 @@ end
 
 function read_msg_from_stream(socket::IO)
     read_no_bytes = read(socket, UInt32)
-    @info "Read message size: $read_no_bytes bytes"
+    @debug "Read message size: $read_no_bytes bytes"
     buffer = read(socket, read_no_bytes)
     msg = create_proto_msg(buffer)
-    @info "Read message buffer and created Message"
+    @debug "Read message buffer and created Message"
     return msg
 end    
 
@@ -43,13 +43,13 @@ end
 
 function send_proto_msg_to_stream(message, socket)
     iob = PipeBuffer()
-    @info "Created buffer"
+    @debug "Created buffer"
     len = writeproto(iob, message)
-    @info "Writing return size: $len"
+    @debug "Writing return size: $len"
     write(socket, convert(UInt32, len))
-    @info "Writing message"
+    @debug "Writing message"
     write(socket, iob)
-    @info "Written message"
+    @debug "Written message"
 end
 
 
@@ -78,7 +78,7 @@ end
         listen(server)
         try while true
             socket = accept(server)
-            @info "Accepting connection on port: $port"
+            @debug "Accepting connection on port: $port"
             @async while isopen(socket)
                 try 
                     msg = read_msg_from_stream(socket)
@@ -94,9 +94,9 @@ end
             end
         end
         catch e 
-            @info "Caught exception" e 
+            @debug "Caught exception" e 
         end
-        @info "Closing EbitODEServer on port $port"
+        @debug "Closing EbitODEServer on port $port"
     end
      return server
 end

@@ -140,10 +140,10 @@ end
 
 @noinline function create_diffeq_prob(problem)
     if problem.problem_parameters.problem_type == EbitODEMessages.ProblemType.ODEProblem
-        @info "Creating ODEProblem"
+        @debug "Creating ODEProblem"
         p = EbitParameters(problem.diff_eq_parameters)
 
-        @info "Created differential equation parameters" p.dN
+        @debug "Created differential equation parameters" p.dN
 
         tspan = (problem.problem_parameters.time_span.start,
                  problem.problem_parameters.time_span.stop)
@@ -153,7 +153,7 @@ end
             problem.diff_eq_parameters.no_dimensions
         )
 
-        @info "Created initial values from list" initial_values
+        @debug "Created initial values from list" initial_values
 
         global last_p = p
         global last_initial_values = initial_values
