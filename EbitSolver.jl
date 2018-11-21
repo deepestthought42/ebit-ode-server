@@ -1,7 +1,8 @@
 module EbitSolver
 using Revise
-using EbitODEMessages
-using MicroLogging
+# using ProgressMeter
+using Main.EbitODEMessages
+# using MicroLogging
 
 export solve_ode, pack_ode_result
 
@@ -47,8 +48,10 @@ struct EbitParameters
 
     no_dimensions::UInt32
     min_N::Float64
+
+    report_function
     
-    function EbitParameters(dep::EbitODEMessages.DiffEqParameters)
+    function EbitParameters(dep::EbitODEMessages.DiffEqParameters, report_function)
         dim = dep.no_dimensions
         qVₑ = dep.qVe
         qVₜ = dep.qVt
@@ -61,7 +64,7 @@ struct EbitParameters
 
         return new(qVₑ, qVₜ, A, ϕ, qVe_over_Vol_x_kT,
                    dep.source_terms, χ, dN, 
-                   CX, dep.no_dimensions, dep.minimum_N)
+                   CX, dep.no_dimensions, dep.minimum_N, report_function)
     end
 end
 
@@ -138,10 +141,10 @@ function create_initial_values(initial_values, dimensions)
 end
 
 
-@noinline function create_diffeq_prob(problem)
+@noinline function create_diffeq_prob(problem, report_function)
     if problem.problem_parameters.problem_type == EbitODEMessages.ProblemType.ODEProblem
         @debug "Creating ODEProblem"
-        p = EbitParameters(problem.diff_eq_parameters)
+        p = EbitParameters(problem.diff_eq_parameters, report_function)
 
         @debug "Created differential equation parameters" p.dN
 
@@ -201,15 +204,25 @@ function pack_ode_msg(res)
     return EbitODEMessages.Message(msg_type=EbitODEMessages.MessageType.ODEResult, ode_result = res)
 end
 
-@noinline function solve_ode(problem)
+
+function callback(u,t,integrator)
+    if integrator.p.report_function(t)
+        terminate!(integrator)
+        @info "Terminating integration" t
+    end
+end
+
+function solve_ode(problem, report_progress)
     start_ = time()
-    sol = solve(create_diffeq_prob(problem), 
+    @info "Starting solver"
+    sol = solve(create_diffeq_prob(problem, report_progress), 
                 # alghints=[:stiff],
                 saveat=problem.solver_parameters.saveat,
                 # abstol=1e-3,
-                cb=GeneralDomain((resid, u, p, t) -> resid .= abs.(min.(0, u)))
+                callback=FunctionCallingCallback(callback, funcat=problem.solver_parameters.saveat),
                 )
     stop = time()
+    @info "Finished integration" start_ stop
     return pack_ode_msg(pack_ode_result(sol, problem, start_, stop))
 end
 

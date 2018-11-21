@@ -1,10 +1,10 @@
 module EbitODEServer
 
 export start_ode_server
-
-using EbitSolver
-using EbitODEMessages
-using MicroLogging
+using Sockets
+using Main.EbitSolver
+using Main.EbitODEMessages
+# using MicroLogging
 using ProtoBuf
 
 function create_proto_msg(buffer)
@@ -28,10 +28,10 @@ function read_msg_from_stream(socket::IO)
 end    
 
 
-function process(msg::EbitODEMessages.Message)
+function process(msg::EbitODEMessages.Message, report_progress)
     try 
         if msg.msg_type == EbitODEMessages.MessageType.SolveODE
-            ret = EbitSolver.solve_ode(msg.ode_problem)
+            ret = EbitSolver.solve_ode(msg.ode_problem, report_progress)
             return ret
         end
         return create_proto_err_msg("Unable to handle msg type: $msg.msg_type")
@@ -54,7 +54,7 @@ end
 
 
 
-server = Base.TCPServer()
+server = Sockets.TCPServer()
 
 function ode_bind_server(port)
     global server
@@ -63,26 +63,47 @@ function ode_bind_server(port)
          || server.status == Base.StatusConnecting )
         close(server)
     end        
-    new_server = Base.TCPServer()
+    new_server = Sockets.TCPServer()
     
     !bind(new_server, IPv4(UInt(0)), port) && error("cannot bind to port; may already be in use or access denied")
     global server = new_server
 end
 
 
+progress_message = EbitODEMessages.Message(msg_type=EbitODEMessages.MessageType.StatusUpdate, 
+                                           status = EbitODEMessages.Status.SolivingODEInProgress,
+                                           progress = EbitODEMessages.Progress(time = 0.0))
+
+
+
+function send_progress(socket, t, abort)
+    progress_message.progress.time = t
+    send_proto_msg_to_stream(progress_message, socket)
+    return abort()
+end
 
 
 @noinline function start_ode_server(port)
     ode_bind_server(port)
     @async begin
         listen(server)
-        try while true
+        try
+            while true
             socket = accept(server)
             @debug "Accepting connection on port: $port"
             @async while isopen(socket)
-                try 
+                try
+                    abort = false
                     msg = read_msg_from_stream(socket)
-                    ret_val = process(msg)
+                    
+                    @async while isopen(socket)
+                        msg = read_msg_from_stream(socket)
+                        if (msg.msg_type == EbitODEMessages.MessageType.StopServer)
+                            abort = true
+                        end
+                    end
+                        
+                    ret_val = process(msg, t -> send_progress(socket, t, () -> abort))
                     send_proto_msg_to_stream(ret_val, socket)
                 catch e
                     if isa(e, EOFError)
@@ -105,7 +126,7 @@ end
 function restart(port=2000)
     include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitSolver.jl")
     include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitODEServer.jl")
-
+    close(server)
     EbitODEServer.start_ode_server(port)
 end
 

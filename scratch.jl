@@ -1,4 +1,8 @@
 push!(LOAD_PATH, "/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/")
+include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitODEMessages.jl")
+include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitSolver.jl")
+include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitODEServer.jl")
+
 using Revise
 using EbitODEServer
 import Base.+, Base.*, Base./, Base.-, Base.zero, Base.transpose, Base.exp, Base.^

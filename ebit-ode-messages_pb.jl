@@ -66,6 +66,13 @@ end #mutable struct Update
 const __req_Update = Symbol[:status,:message]
 meta(t::Type{Update}) = meta(t, __req_Update, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
+mutable struct Progress <: ProtoType
+    time::Float64
+    Progress(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
+end #mutable struct Progress
+const __req_Progress = Symbol[:time]
+meta(t::Type{Progress}) = meta(t, __req_Progress, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
+
 mutable struct TimeSpan <: ProtoType
     start::Float64
     stop::Float64
@@ -159,9 +166,10 @@ mutable struct Message <: ProtoType
     ode_result::Result
     status::Int32
     err::ErrorEncountered
+    progress::Progress
     Message(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct Message
 const __req_Message = Symbol[:msg_type]
 meta(t::Type{Message}) = meta(t, __req_Message, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, true, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES, ProtoBuf.DEF_FIELD_TYPES)
 
-export Status, ProblemType, ReturnCode, MessageType, Nuclide, MatrixValue, Update, TimeSpan, InitialValue, DiffEqParameters, ProblemParameters, SolverParameters, SolveODEProblem, ValuesPerNuclide, Result, ErrorEncountered, Message
+export Status, ProblemType, ReturnCode, MessageType, Nuclide, MatrixValue, Update, Progress, TimeSpan, InitialValue, DiffEqParameters, ProblemParameters, SolverParameters, SolveODEProblem, ValuesPerNuclide, Result, ErrorEncountered, Message
