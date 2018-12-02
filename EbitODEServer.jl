@@ -83,12 +83,12 @@ function send_progress(socket, t, abort)
 end
 
 
-@noinline function start_ode_server(port)
+
+@noinline function start_ode_server(port=2000)
     ode_bind_server(port)
-    @async begin
-        listen(server)
-        try
-            while true
+    listen(server)
+    try
+        while true
             socket = accept(server)
             @debug "Accepting connection on port: $port"
             @async while isopen(socket)
@@ -102,7 +102,7 @@ end
                             abort = true
                         end
                     end
-                        
+                    
                     ret_val = process(msg, t -> send_progress(socket, t, () -> abort))
                     send_proto_msg_to_stream(ret_val, socket)
                 catch e
@@ -114,12 +114,15 @@ end
                 end
             end
         end
-        catch e 
-            @debug "Caught exception" e 
-        end
-        @debug "Closing EbitODEServer on port $port"
+    catch e 
+        @debug "Caught exception" e 
     end
-     return server
+    @debug "Closing EbitODEServer on port $port"
+end
+
+function async_server_start(port=2000)
+    @async start_ode_server(port)
+    return server
 end
 
 
@@ -127,7 +130,7 @@ function restart(port=2000)
     include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitSolver.jl")
     include("/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/EbitODEServer.jl")
     close(server)
-    EbitODEServer.start_ode_server(port)
+    EbitODEServer.async_server_start(port)
 end
 
 
