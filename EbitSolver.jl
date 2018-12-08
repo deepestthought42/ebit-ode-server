@@ -88,7 +88,7 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
         end
         
         @simd for i in 1:p.no_dimensions
-            R_esc_sum_j = 0.0
+            ν = 0.0
             R_exchange_sum_j = 0.0
             dN[i] = p.source[i]
             dτ[i] = 0.0
@@ -101,8 +101,8 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
                     nⱼ = N[j] * p.qVe_over_Vol_x_kT[j] / τ[j]
                     arg = (τ[i]/p.A[i] + τ[j]/p.A[j])
                     Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
-                    R_esc_sum_j += fᵢⱼ * Σ
-                    R_exchange_sum_j +=  fᵢⱼ * Σ * (τ[j] - τ[i])
+                    ν += Σ
+                    R_exchange_sum_j += fᵢⱼ * Σ * (τ[j] - τ[i])
 
                     dN[i] += p.CX[i,j]*N[j]*sqrt(τ[j])
                 end
@@ -113,8 +113,8 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
 
             dτ[i] += R_exchange_sum_j
             if N[i] > p.min_N 
-                R_esc = 3/sqrt(3) * R_esc_sum_j * ( τ[i] / p.qVₜ[i] ) * exp( -p.qVₜ[i] / τ[i] ) 
-                dτ[i] += ( min( p.qVₑ[i] / τ[i], 1.0) * p.ϕ[i] ) - ( τ[i] + p.qVₜ[i] ) * R_esc
+                R_esc = 3/sqrt(2) * ν * ( τ[i] / p.qVₜ[i] ) * exp( -p.qVₜ[i] / τ[i] ) 
+                dτ[i] += min( p.qVₑ[i] / τ[i], 1.0) * p.ϕ[i]  - ( τ[i] + p.qVₜ[i] ) * R_esc
                 dN[i] -= N[i] * R_esc
             end
             
