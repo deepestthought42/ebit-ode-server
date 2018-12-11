@@ -40,15 +40,18 @@ struct EbitParameters
     A::Array{Float64,1}
     ϕ::Array{Float64,1}
     qVe_over_Vol_x_kT::Array{Float64,1}
-    source::Array{Float64,1}
+    source_n::Array{Float64,1}
+    source_kT::Array{Float64,1}
 
     χ::Array{Float64,2}
     dN::Array{Float64,2}
     CX::Array{Float64,2}
 
+    τ::Array{Float64,1}
+    
     no_dimensions::UInt32
     min_N::Float64
-
+    
     report_function
     
     function EbitParameters(dep::EbitODEMessages.DiffEqParameters, report_function)
@@ -63,8 +66,9 @@ struct EbitParameters
         CX = create_matrix(dim, dep.dCharge_ex_divided_by_N_times_tau)
 
         return new(qVₑ, qVₜ, A, ϕ, qVe_over_Vol_x_kT,
-                   dep.source_terms, χ, dN, 
-                   CX, dep.no_dimensions, dep.minimum_N, report_function)
+                   dep.source_terms_n, dep.source_terms_kt, χ, dN, CX,
+                   Array{Float64}(undef, dep.no_dimensions),
+                   dep.no_dimensions, dep.minimum_N, report_function)
     end
 end
 
@@ -78,44 +82,55 @@ end
 function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Float64)
     @inbounds begin
         N = view(u, 1:p.no_dimensions)
-        τ = view(u, p.no_dimensions+1:p.no_dimensions*2)
+        Nτ = view(u, p.no_dimensions+1:p.no_dimensions*2)
 
         dN = view(du, 1:p.no_dimensions)
-        dτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
+        dNτ = view(du, p.no_dimensions+1:p.no_dimensions*2)
+        
+        
 
+        
         for i in 1:p.no_dimensions
-            τ[i] = max(0, τ[i])
+            if N[i] > p.min_N 
+                p.τ[i] = Nτ[i] / N[i]
+            else
+                p.τ[i] = 0.0
+            end
         end
+
         
         @simd for i in 1:p.no_dimensions
             ν = 0.0
             R_exchange_sum_j = 0.0
-            dN[i] = p.source[i]
-            dτ[i] = 0.0
+            dN[i] = p.source_n[i]
+            dNτ[i] = p.source_kT[i]
 
 
             @simd for j in 1:p.no_dimensions
                 # calculate everything that is based on interaction of two states
-                if (N[i] > p.min_N && N[j] > p.min_N && τ[j] > 0.0 && τ[i] > 0.0) 
-                    fᵢⱼ = min((τ[i]*p.qVₑ[j])/(τ[j]*p.qVₑ[i]), 1.0)
-                    nⱼ = N[j] * p.qVe_over_Vol_x_kT[j] / τ[j]
-                    arg = (τ[i]/p.A[i] + τ[j]/p.A[j])
+                if (N[i] > p.min_N && N[j] > p.min_N && p.τ[j] > 0.0 && p.τ[i] > 0.0) 
+                    fᵢⱼ = min((p.τ[i]*p.qVₑ[j])/(p.τ[j]*p.qVₑ[i]), 1.0)
+                    nⱼ = N[j] * p.qVe_over_Vol_x_kT[j] / p.τ[j]
+                    arg = (p.τ[i]/p.A[i] + p.τ[j]/p.A[j])
                     Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
                     ν += Σ
-                    R_exchange_sum_j += fᵢⱼ * Σ * (τ[j] - τ[i])
+                    R_exchange_sum_j += fᵢⱼ * Σ * (p.τ[j] - p.τ[i])
 
-                    dN[i] += p.CX[i,j]*N[j]*sqrt(τ[j])
+                    dN[i] += p.CX[i,j]*N[j]*sqrt(p.τ[j])
+                    dNτ[i] += p.CX[i,j]*N[j]*sqrt(p.τ[j])*p.τ[j]
                 end
-
+                
                 dN[i] += p.dN[i,j]*N[j]
-
+                dNτ[i] += p.dN[i,j]*Nτ[j]
             end
 
-            dτ[i] += R_exchange_sum_j
-            if N[i] > p.min_N 
-                R_esc = 3/sqrt(2) * ν * ( τ[i] / p.qVₜ[i] ) * exp( -p.qVₜ[i] / τ[i] ) 
-                dτ[i] += min( p.qVₑ[i] / τ[i], 1.0) * p.ϕ[i]  - ( τ[i] + p.qVₜ[i] ) * R_esc
+            dNτ[i] += R_exchange_sum_j*N[i] 
+
+            if N[i] > p.min_N && p.τ[i] > 0.0
+                R_esc = 3/sqrt(2) * ν * ( p.τ[i] / p.qVₜ[i] ) * exp( - p.qVₜ[i] / p.τ[i] )
+                dNτ[i] += N[i] * min( p.qVₑ[i] / p.τ[i], 1.0) * p.ϕ[i] 
                 dN[i] -= N[i] * R_esc
+                dNτ[i] -= N[i] * ( p.τ[i] + p.qVₜ[i] ) * R_esc
             end
             
         end
@@ -176,9 +191,9 @@ function pack_values(solution, nuclides)
     len_t = length(s.t)
     len_i = length(nuclides)
 
-    ret_n = [EbitODEMessages.ValuesPerNuclide(nuclide=nuclide, values=Array{Float64}(len_t))
+    ret_n = [EbitODEMessages.ValuesPerNuclide(nuclide=nuclide, values=Array{Float64}(undef, len_t))
              for nuclide in nuclides]
-    ret_kT = [EbitODEMessages.ValuesPerNuclide(nuclide=nuclide, values=Array{Float64}(len_t))
+    ret_kT = [EbitODEMessages.ValuesPerNuclide(nuclide=nuclide, values=Array{Float64}(undef, len_t))
               for nuclide in nuclides]
 
     for t in 1:len_t

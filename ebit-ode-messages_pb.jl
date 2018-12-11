@@ -103,7 +103,8 @@ mutable struct DiffEqParameters <: ProtoType
     initial_values::Base.Vector{InitialValue}
     initial_temperature::Float64
     minimum_N::Float64
-    source_terms::Base.Vector{Float64}
+    source_terms_n::Base.Vector{Float64}
+    source_terms_kt::Base.Vector{Float64}
     DiffEqParameters(; kwargs...) = (o=new(); fillunset(o); isempty(kwargs) || ProtoBuf._protobuild(o, kwargs); o)
 end #mutable struct DiffEqParameters
 const __req_DiffEqParameters = Symbol[:no_dimensions,:initial_temperature,:minimum_N]
