@@ -126,7 +126,7 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
 
             dNτ[i] += R_exchange_sum_j*N[i] 
 
-            if N[i] > p.min_N && p.τ[i] > 0.0
+            if p.τ[i] > 0.0
                 R_esc = 3/sqrt(2) * ν * ( p.τ[i] / p.qVₜ[i] ) * exp( - p.qVₜ[i] / p.τ[i] )
                 dNτ[i] += N[i] * min( p.qVₑ[i] / p.τ[i], 1.0) * p.ϕ[i] 
                 dN[i] -= N[i] * R_esc
