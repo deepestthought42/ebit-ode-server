@@ -1,14 +1,10 @@
 module EbitSolver
-# using Revise
-# using ProgressMeter
 using Main.EbitODEMessages
-# using MicroLogging
 
 export solve_ode, pack_ode_result
 
 using DifferentialEquations
 using ProtoBuf
-# using SparseArrays
 using ParameterizedFunctions
 
 
@@ -105,15 +101,14 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
             dN[i] = p.source_n[i]
             dNτ[i] = p.source_kT[i]
 
-
             @simd for j in 1:p.no_dimensions
-                # calculate everything that is based on interaction of two states
+                # calculate everything that is based on interaction of two species
                 if (N[i] > p.min_N && N[j] > p.min_N && p.τ[j] > 0.0 && p.τ[i] > 0.0) 
                     fᵢⱼ = min((p.τ[i]*p.qVₑ[j])/(p.τ[j]*p.qVₑ[i]), 1.0)
                     nⱼ = N[j] * p.qVe_over_Vol_x_kT[j] / p.τ[j]
                     arg = (p.τ[i]/p.A[i] + p.τ[j]/p.A[j])
                     Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
-                    ν += Σ
+                    ν += fᵢⱼ*Σ
                     R_exchange_sum_j += fᵢⱼ * Σ * (p.τ[j] - p.τ[i])
 
                     dN[i] += p.CX[i,j]*N[j]*sqrt(p.τ[j])

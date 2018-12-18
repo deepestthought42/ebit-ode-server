@@ -4,7 +4,6 @@ export start_ode_server
 using Sockets
 using Main.EbitSolver
 using Main.EbitODEMessages
-# using MicroLogging
 using ProtoBuf
 
 function create_proto_msg(buffer)

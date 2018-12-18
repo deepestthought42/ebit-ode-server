@@ -4,6 +4,7 @@ include("EbitSolver.jl")
 include("EbitODEServer.jl")
  
 module EbitServer
+using ArgParse
 using LinearAlgebra
 using Statistics
 using Distances
@@ -15,10 +16,23 @@ using Main.EbitODEServer
 using Main.EbitODEMessages
 
 
+function parse_commandline(ARGS::Vector{String})
+    s = ArgParseSettings(description="Kairos ODE Server", version = "0.0.1")
+    @add_arg_table s begin
+        "--port", "-p"
+            help = "Port used to connect to server."
+            arg_type = Int
+            default = 2000
+    end
+
+    return parse_args(ARGS,s)
+end
+
 
 
 Base.@ccallable function julia_main(ARGS::Vector{String})::Cint
-    Main.EbitODEServer.start_ode_server()
+    arguments = parse_commandline(ARGS)
+    Main.EbitODEServer.start_ode_server(arguments["port"])
     return 0
 end
 
