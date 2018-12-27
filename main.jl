@@ -1,14 +1,11 @@
 # push!(LOAD_PATH, "/home/renee/phd/src/ebit-evolution.project/ebit-ode-server/")
+include("EbitCloudSpatialExtend.jl")
 include("EbitODEMessages.jl")
 include("EbitSolver.jl")
 include("EbitODEServer.jl")
  
 module EbitServer
 using ArgParse
-using LinearAlgebra
-using Statistics
-using Distances
-
 using DifferentialEquations
 
 using Main.EbitSolver

@@ -1,13 +1,13 @@
 module EbitSolver
 using Main.EbitODEMessages
+using Main.EbitCloudSpatialExtend
 
 export solve_ode, pack_ode_result
 
 using DifferentialEquations
 using ProtoBuf
 using ParameterizedFunctions
-
-
+using Memoize
 
 
 _ret_codes_ = Dict(
@@ -35,6 +35,8 @@ struct EbitParameters
     qVₜ::Array{Float64,1}
     A::Array{Float64,1}
     ϕ::Array{Float64,1}
+    q::Array{Float64,1}
+    
     qVe_over_Vol_x_kT::Array{Float64,1}
     source_n::Array{Float64,1}
     source_kT::Array{Float64,1}
@@ -47,13 +49,19 @@ struct EbitParameters
     
     no_dimensions::UInt32
     min_N::Float64
-    
     report_function
+    ion_ion_overlap_function
+    electron_beam_ion_overlap_function
+    ion_density_function
     
-    function EbitParameters(dep::EbitODEMessages.DiffEqParameters, report_function)
+    function EbitParameters(dep::EbitODEMessages.DiffEqParameters, report_function, 
+                            ion_ion_overlap_function, 
+                            electron_beam_ion_overlap_function,
+                            ion_density_function)
         dim = dep.no_dimensions
         qVₑ = dep.qVe
         qVₜ = dep.qVt
+        q = dep.q
         A = dep.mass_number
         ϕ = dep.spitzer_divided_by_overlap
         qVe_over_Vol_x_kT = dep.qVe_over_Vol_x_kT
@@ -61,19 +69,17 @@ struct EbitParameters
         dN = create_matrix(dim, dep.rate_of_change_divided_by_N)
         CX = create_matrix(dim, dep.dCharge_ex_divided_by_N_times_tau)
 
-        return new(qVₑ, qVₜ, A, ϕ, qVe_over_Vol_x_kT,
+        return new(qVₑ, qVₜ, A, ϕ, q, qVe_over_Vol_x_kT,
                    dep.source_terms_n, dep.source_terms_kt, χ, dN, CX,
                    Array{Float64}(undef, dep.no_dimensions),
-                   dep.no_dimensions, dep.minimum_N, report_function)
+                   dep.no_dimensions, dep.minimum_N, 
+                   report_function, 
+                   ion_ion_overlap_function, 
+                   electron_beam_ion_overlap_function,
+                   ion_density_function)
     end
 end
 
-function iserr(x::Float64, name::String)
-    if isinf(x) || isnan(x) || iszero(x) || isless(x, 0)
-        error("$name = $x")
-    end
-    x
-end
 
 function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Float64)
     @inbounds begin
@@ -88,7 +94,7 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
         
         for i in 1:p.no_dimensions
             if N[i] > p.min_N 
-                p.τ[i] = Nτ[i] / N[i]
+                p.τ[i] = Nτ[i] / (1.5 * N[i])
             else
                 p.τ[i] = 0.0
             end
@@ -108,11 +114,11 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
                     nⱼ = N[j] * p.qVe_over_Vol_x_kT[j] / p.τ[j]
                     arg = (p.τ[i]/p.A[i] + p.τ[j]/p.A[j])
                     Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
-                    ν += fᵢⱼ*Σ
-                    R_exchange_sum_j += fᵢⱼ * Σ * (p.τ[j] - p.τ[i])
+                    ν += fᵢⱼ* Σ
+                    R_exchange_sum_j += Σ * (p.τ[j] - p.τ[i])
 
                     dN[i] += p.CX[i,j]*N[j]*sqrt(p.τ[j])
-                    dNτ[i] += p.CX[i,j]*N[j]*sqrt(p.τ[j])*p.τ[j]
+                    dNτ[i] += p.CX[i,j]*Nτ[j]*sqrt(p.τ[j])
                 end
                 
                 dN[i] += p.dN[i,j]*N[j]
@@ -151,10 +157,23 @@ function create_initial_values(initial_values, dimensions)
 end
 
 
+@memoize function create_ion_ion_overlap_function(r_stop, r_e, V_0)
+    EbitCloudSpatialExtend.create_2d_interpolation(
+        (x,y) -> EbitCloudSpatialExtend.ion_ion_overlap(x, y, r_stop, r_e, V_0))
+end
+
+@memoize function create_electron_ion_overlap_function(r_stop, r_e, V_0)
+    EbitCloudSpatialExtend.create_interpolation(
+        x -> EbitCloudSpatialExtend.electron_ion_overlap(x, r_stop, r_e, V_0))
+end
+
 @noinline function create_diffeq_prob(problem, report_function)
     if problem.problem_parameters.problem_type == EbitODEMessages.ProblemType.ODEProblem
         @debug "Creating ODEProblem"
-        p = EbitParameters(problem.diff_eq_parameters, report_function)
+        dp = problem.diff_eq_parameters
+        p = EbitParameters(dp, report_function, 
+                           create_ion_ion_overlap_function(dp.r_dt, dp.r_e, dp.V_0),
+                           (::Any) -> nothing, (::Any) -> nothing)
 
         @debug "Created differential equation parameters" p.dN
 
