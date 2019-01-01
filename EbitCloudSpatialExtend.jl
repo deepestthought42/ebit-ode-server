@@ -21,33 +21,44 @@ end
 
 
 function ion_ion_overlap(qe_over_kT_i, qe_over_kT_j, r_stop, r_e, V_0, rtol=1e-6)
-    retval = min(1.0, eta(qe_over_kT_i,  r_stop, r_e, V_0, rtol) / eta(qe_over_kT_j, r_stop, r_e, V_0, rtol))
+    retval = eta(qe_over_kT_i,  r_stop, r_e, V_0, rtol) / eta(qe_over_kT_j, r_stop, r_e, V_0, rtol)
     if isnan(retval)
         return 1.0
     else
-        return retval
+        return min(1.0, retval)
     end
 end
 
 function electron_ion_overlap(qe_over_kT, r_stop, r_e, V_0, rtol=1e-6)
-    retval = min(1.0, eta(qe_over_kT, r_e, r_e, V_0, rtol) / eta(qe_over_kT, r_stop, r_e, V_0, rtol))
+    retval = eta(qe_over_kT, r_e, r_e, V_0, rtol) / eta(qe_over_kT, r_stop, r_e, V_0, rtol)
     if isnan(retval)
         return 1.0
     else
-        return retval
+        return min(1.0, retval)
     end
 end
 
 
-function effective_radius(qe_over_kT, r_stop, r_e, V_0; rtol=1e-6, change_to_simple=100)
-    if ( V_0 * qe_over_kT > change_to_simple)
-        return r_e * sqrt(1/(V_0 * qe_over_kT))
+function heat_capacitance(qe_over_kT, r_stop, r_e, V_0; rtol=1e-6, nanval=2.5)
+    norm = eta(qe_over_kT, r_stop, r_e, V_0)
+    p2 = quadgk(r -> phi(r,r_e,V_0)^2*exp(-qe_over_kT*phi(r, r_e, V_0))*r, 0, r_stop, rtol=rtol, order=15)[1]
+    p = quadgk(r -> phi(r,r_e,V_0)*exp(-qe_over_kT*phi(r, r_e, V_0))*r, 0, r_stop, rtol=rtol, order=15)[1]
+
+    val = qe_over_kT^2 * (p2/norm - (p/norm)^2) + 1.5
+
+    if isnan(val)
+        return nanval
     else
-        f(r) = exp(-qe_over_kT*phi(r, r_e, V_0))*r
-        g(r) = exp(-qe_over_kT*phi(r, r_e, V_0))*r*r
-    
-        return quadgk(g, 0, r_stop, rtol=rtol, order=21)[1] / quadgk(f, 0, r_stop, rtol=rtol, order=21)[1]
+        return val
     end
+end
+
+
+function effective_radius(qe_over_kT, r_stop, r_e, V_0; rtol=1e-6)
+    f(r) = exp(-qe_over_kT*phi(r, r_e, V_0))*r
+    g(r) = exp(-qe_over_kT*phi(r, r_e, V_0))*r*r
+    
+    return quadgk(g, 0, r_stop, rtol=rtol, order=21)[1] / quadgk(f, 0, r_stop, rtol=rtol, order=21)[1]
 end
 
 

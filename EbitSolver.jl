@@ -37,7 +37,6 @@ struct EbitParameters
     ϕ::Array{Float64,1}
     q::Array{Float64,1}
     
-    qVe_over_Vol_x_kT::Array{Float64,1}
     source_n::Array{Float64,1}
     source_kT::Array{Float64,1}
 
@@ -52,31 +51,33 @@ struct EbitParameters
     report_function
     ion_ion_overlap_function
     electron_beam_ion_overlap_function
-    ion_density_function
+    one_over_ion_cloud_vol_function
+    heat_capacity_function
     
     function EbitParameters(dep::EbitODEMessages.DiffEqParameters, report_function, 
                             ion_ion_overlap_function, 
                             electron_beam_ion_overlap_function,
-                            ion_density_function)
+                            one_over_ion_cloud_vol_function,
+                            heat_capacity_function)
         dim = dep.no_dimensions
         qVₑ = dep.qVe
         qVₜ = dep.qVt
         q = dep.q
         A = dep.mass_number
         ϕ = dep.spitzer_divided_by_overlap
-        qVe_over_Vol_x_kT = dep.qVe_over_Vol_x_kT
         χ = create_matrix(dim, dep.inverted_collision_constant)
         dN = create_matrix(dim, dep.rate_of_change_divided_by_N)
         CX = create_matrix(dim, dep.dCharge_ex_divided_by_N_times_tau)
 
-        return new(qVₑ, qVₜ, A, ϕ, q, qVe_over_Vol_x_kT,
+        return new(qVₑ, qVₜ, A, ϕ, q,
                    dep.source_terms_n, dep.source_terms_kt, χ, dN, CX,
                    Array{Float64}(undef, dep.no_dimensions),
                    dep.no_dimensions, dep.minimum_N, 
                    report_function, 
                    ion_ion_overlap_function, 
                    electron_beam_ion_overlap_function,
-                   ion_density_function)
+                   one_over_ion_cloud_vol_function,
+                   heat_capacity_function)
     end
 end
 
@@ -106,16 +107,17 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
             R_exchange_sum_j = 0.0
             dN[i] = p.source_n[i]
             dNτ[i] = p.source_kT[i]
-
+            beta_i = p.q[i]/p.τ[i]
             @simd for j in 1:p.no_dimensions
                 # calculate everything that is based on interaction of two species
-                if (N[i] > p.min_N && N[j] > p.min_N && p.τ[j] > 0.0 && p.τ[i] > 0.0) 
-                    fᵢⱼ = min((p.τ[i]*p.qVₑ[j])/(p.τ[j]*p.qVₑ[i]), 1.0)
-                    nⱼ = N[j] * p.qVe_over_Vol_x_kT[j] / p.τ[j]
+                if (N[i] > p.min_N && N[j] > p.min_N && p.τ[j] > 0.0 && p.τ[i] > 0.0)
+                    beta_j = p.q[j]/p.τ[j]
+                    fᵢⱼ = p.ion_ion_overlap_function(beta_i, beta_j)
+                    nⱼ = N[j] * p.one_over_ion_cloud_vol_function(beta_j)
                     arg = (p.τ[i]/p.A[i] + p.τ[j]/p.A[j])
                     Σ = p.χ[i,j] * nⱼ * arg^(-1.5)
-                    ν += fᵢⱼ* Σ
-                    R_exchange_sum_j += Σ * (p.τ[j] - p.τ[i])
+                    ν += Σ
+                    R_exchange_sum_j += fᵢⱼ * Σ * (p.τ[j] - p.τ[i])
 
                     dN[i] += p.CX[i,j]*N[j]*sqrt(p.τ[j])
                     dNτ[i] += p.CX[i,j]*Nτ[j]*sqrt(p.τ[j])
@@ -125,14 +127,16 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
                 dNτ[i] += p.dN[i,j]*Nτ[j]
             end
 
-            dNτ[i] += R_exchange_sum_j*N[i] 
+            dNτ[i] += R_exchange_sum_j*N[i]
 
             if p.τ[i] > 0.0
-                R_esc = 3/sqrt(2) * ν * ( p.τ[i] / p.qVₜ[i] ) * exp( - p.qVₜ[i] / p.τ[i] )
-                dNτ[i] += N[i] * min( p.qVₑ[i] / p.τ[i], 1.0) * p.ϕ[i] 
+                ɷ = p.qVₜ[i] / p.τ[i]
+                R_esc = 3/sqrt(2) * ν * exp(-ɷ) / ɷ
+                dNτ[i] += N[i] * p.electron_beam_ion_overlap_function(beta_i) * p.ϕ[i]
                 dN[i] -= N[i] * R_esc
                 dNτ[i] -= N[i] * ( p.τ[i] + p.qVₜ[i] ) * R_esc
             end
+            
             
         end
 
@@ -157,14 +161,29 @@ function create_initial_values(initial_values, dimensions)
 end
 
 
+@memoize function create_heat_capacity(r_stop, r_e, V_0)
+    @info "Creating heat capacitance approximation"
+    EbitCloudSpatialExtend.create_interpolation(
+        x -> EbitCloudSpatialExtend.heat_capacitance(x, r_stop, r_e, V_0))
+end
+
 @memoize function create_ion_ion_overlap_function(r_stop, r_e, V_0)
+    @info "Creating ion/ion overlap approximation"
     EbitCloudSpatialExtend.create_2d_interpolation(
         (x,y) -> EbitCloudSpatialExtend.ion_ion_overlap(x, y, r_stop, r_e, V_0))
 end
 
 @memoize function create_electron_ion_overlap_function(r_stop, r_e, V_0)
+    @info "Creating electron/ion overlap approximation"
     EbitCloudSpatialExtend.create_interpolation(
         x -> EbitCloudSpatialExtend.electron_ion_overlap(x, r_stop, r_e, V_0))
+end
+
+@memoize function create_one_over_ion_cloud_volume_function(r_stop, r_e, V_0, l_dt)
+    @info "Creating ion density approximation"
+    EbitCloudSpatialExtend.create_interpolation(
+        x -> 1 / (pi * l_dt * (EbitCloudSpatialExtend.effective_radius(x, r_stop, r_e, V_0))^2))
+
 end
 
 @noinline function create_diffeq_prob(problem, report_function)
@@ -173,12 +192,13 @@ end
         dp = problem.diff_eq_parameters
         p = EbitParameters(dp, report_function, 
                            create_ion_ion_overlap_function(dp.r_dt, dp.r_e, dp.V_0),
-                           (::Any) -> nothing, (::Any) -> nothing)
+                           create_electron_ion_overlap_function(dp.r_dt, dp.r_e, dp.V_0),
+                           create_one_over_ion_cloud_volume_function(dp.r_dt, dp.r_e, dp.V_0, dp.l_dt),
+                           create_heat_capacity(dp.r_dt, dp.r_e, dp.V_0))
 
         @debug "Created differential equation parameters" p.dN
 
-        tspan = (problem.problem_parameters.time_span.start,
-                 problem.problem_parameters.time_span.stop)
+        tspan = (problem.problem_parameters.time_span.start, problem.problem_parameters.time_span.stop)
 
         initial_values = create_initial_values(
             problem.diff_eq_parameters.initial_values,

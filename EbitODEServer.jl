@@ -86,10 +86,11 @@ end
 @noinline function start_ode_server(port=2000)
     ode_bind_server(port)
     listen(server)
+    @info "Created server" port
     try
         while true
             socket = accept(server)
-            @debug "Accepting connection on port: $port"
+            @info "Accepting connection on port: $port"
             @async while isopen(socket)
                 try
                     abort = false
