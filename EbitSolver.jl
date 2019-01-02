@@ -8,7 +8,7 @@ using DifferentialEquations
 using ProtoBuf
 using ParameterizedFunctions
 using Memoize
-
+using SpecialFunctions
 
 _ret_codes_ = Dict(
     :Default => 0,
@@ -131,10 +131,10 @@ function du(du::Array{Float64, 1}, u::Array{Float64,1}, p::EbitParameters, t::Fl
 
             if p.τ[i] > 0.0
                 ɷ = p.qVₜ[i] / p.τ[i]
-                R_esc = 3/sqrt(2) * ν * exp(-ɷ) / ɷ
+                dNi_dt = - N[i] * ν * ( exp(-ɷ) / ɷ - sqrt(ɷ)*(erf(ɷ) - 1))
                 dNτ[i] += N[i] * p.electron_beam_ion_overlap_function(beta_i) * p.ϕ[i]
-                dN[i] -= N[i] * R_esc
-                dNτ[i] -= N[i] * ( p.τ[i] + p.qVₜ[i] ) * R_esc
+                dN[i] +=  dNi_dt
+                dNτ[i] += - ( 2/3*N[i]*ν*exp(-ɷ) - dNi_dt)*p.τ[i]
             end
             
             
@@ -162,7 +162,7 @@ end
 
 
 @memoize function create_heat_capacity(r_stop, r_e, V_0)
-    @info "Creating heat capacitance approximation"
+    @info "Creating heat capacity approximation"
     EbitCloudSpatialExtend.create_interpolation(
         x -> EbitCloudSpatialExtend.heat_capacitance(x, r_stop, r_e, V_0))
 end
